@@ -115,37 +115,32 @@ function compile(chunks) {
 }
 exports.compile = compile;
 function decompile(buffer) {
+  // TODO: remove me
   if (chunksIsArray(buffer)) return buffer;
   typeforce(types.Buffer, buffer);
   const chunks = [];
   let i = 0;
   while (i < buffer.length) {
     const opcode = buffer[i];
-    // Direct handling of known single-byte opcodes (including minimal push ops)
-    if (
-      (opcode >= ops_1.OPS.OP_0 && opcode <= ops_1.OPS.OP_16) ||
-      opcode === ops_1.OPS.OP_1NEGATE
-    ) {
-      chunks.push(opcode);
-      i += 1;
-    } else if (opcode > ops_1.OPS.OP_16 && opcode <= ops_1.OPS.OP_PUSHDATA4) {
-      // Handle PUSHDATA opcodes
+    // data chunk
+    if (opcode > ops_1.OPS.OP_0 && opcode <= ops_1.OPS.OP_PUSHDATA4) {
       const d = pushdata.decode(buffer, i);
-      if (d === null) return null; // Error or out of bounds
+      // did reading a pushDataInt fail?
+      if (d === null) return null;
       i += d.size;
-      if (i + d.number > buffer.length) return null; // Ensure no buffer overflow
+      // attempt to read too much data?
+      if (i + d.number > buffer.length) return null;
       const data = buffer.slice(i, i + d.number);
       i += d.number;
-      // Verify if data matches expected formats before deciding how to push it
-      if (d.number === 1 && data[0] >= 1 && data[0] <= 16) {
-        // Only treat as an opcode if it is clearly meant to be one
-        chunks.push(ops_1.OPS.OP_RESERVED + data[0]);
+      // decompile minimally
+      const op = asMinimalOP(data);
+      if (op !== undefined) {
+        chunks.push(op);
       } else {
-        // Default to pushing data as is
         chunks.push(data);
       }
+      // opcode
     } else {
-      // Push other opcodes directly
       chunks.push(opcode);
       i += 1;
     }
