@@ -115,45 +115,37 @@ function compile(chunks) {
 }
 exports.compile = compile;
 function decompile(buffer) {
-  // Quick exit if buffer is already an array of chunks
   if (chunksIsArray(buffer)) return buffer;
-  // Type enforcement for buffer
   typeforce(types.Buffer, buffer);
   const chunks = [];
   let i = 0;
   while (i < buffer.length) {
     const opcode = buffer[i];
-    // Handling predefined opcode ranges directly
-    if (opcode >= ops_1.OPS.OP_0 && opcode <= ops_1.OPS.OP_16) {
-      // Directly push the opcode if it's between OP_0 and OP_16
-      chunks.push(opcode);
-      i += 1;
-    } else if (opcode === ops_1.OPS.OP_1NEGATE) {
-      // Directly push OP_1NEGATE
+    // Direct handling of known single-byte opcodes (including minimal push ops)
+    if (
+      (opcode >= ops_1.OPS.OP_0 && opcode <= ops_1.OPS.OP_16) ||
+      opcode === ops_1.OPS.OP_1NEGATE
+    ) {
       chunks.push(opcode);
       i += 1;
     } else if (opcode > ops_1.OPS.OP_16 && opcode <= ops_1.OPS.OP_PUSHDATA4) {
-      // Decode data for PUSHDATA opcodes
+      // Handle PUSHDATA opcodes
       const d = pushdata.decode(buffer, i);
-      // Exit if decoding fails
-      if (d === null) return null;
+      if (d === null) return null; // Error or out of bounds
       i += d.size;
-      // Ensure we do not read beyond buffer length
-      if (i + d.number > buffer.length) return null;
-      // Get the actual data
+      if (i + d.number > buffer.length) return null; // Ensure no buffer overflow
       const data = buffer.slice(i, i + d.number);
       i += d.number;
-      // Check for minimal OP usage in the data
-      const op = asMinimalOP(data);
-      if (op !== undefined) {
-        // If a minimal OP is applicable, push it instead of the data
-        chunks.push(op);
+      // Verify if data matches expected formats before deciding how to push it
+      if (d.number === 1 && data[0] >= 1 && data[0] <= 16) {
+        // Only treat as an opcode if it is clearly meant to be one
+        chunks.push(ops_1.OPS.OP_RESERVED + data[0]);
       } else {
-        // Otherwise, push the raw data
+        // Default to pushing data as is
         chunks.push(data);
       }
     } else {
-      // If it's any other opcode, simply push it to the chunks
+      // Push other opcodes directly
       chunks.push(opcode);
       i += 1;
     }
