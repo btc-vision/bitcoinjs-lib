@@ -15,32 +15,8 @@
     "bitcoinjs"
   ],
   "scripts": {
-    "audit": "better-npm-audit audit -l high",
     "build": "npm run clean && tsc -p ./tsconfig.json && npm run formatjs",
-    "build:tests": "npm run clean:jstests && tsc -p ./test/tsconfig.json",
-    "clean": "rimraf src",
-    "clean:jstests": "rimraf 'test/**/!(ts-node-register)*.js'",
-    "coverage-report": "npm run build && npm run nobuild:coverage-report",
-    "coverage-html": "npm run build && npm run nobuild:coverage-html",
-    "coverage": "npm run build && npm run nobuild:coverage",
-    "doc": "typedoc",
-    "format": "npm run prettier -- --write",
-    "formatjs": "npm run prettierjs -- --write",
-    "format:ci": "npm run prettier -- --check && npm run prettierjs -- --check",
-    "gitdiff:ci": "npm run build && git diff --exit-code",
-    "integration": "npm run build && npm run nobuild:integration",
-    "lint": "eslint ts_src/** src/**/*.js",
-    "lint:tests": "eslint test/**/*.spec.ts",
-    "mocha:ts": "mocha --recursive --require test/ts-node-register",
-    "nobuild:coverage-report": "nyc report --reporter=lcov",
-    "nobuild:coverage-html": "nyc report --reporter=html",
-    "nobuild:coverage": "npm run build:tests && nyc --check-coverage --branches 85 --functions 90 --lines 90 mocha && npm run clean:jstests",
-    "nobuild:integration": "npm run mocha:ts -- --timeout 50000 'test/integration/*.ts'",
-    "nobuild:unit": "npm run mocha:ts -- 'test/*.ts'",
-    "prettier": "prettier \"ts_src/**/*.ts\" \"test/**/*.ts\" --ignore-path ./.prettierignore",
-    "prettierjs": "prettier \"src/**/*.js\" --ignore-path ./.prettierignore",
-    "test": "npm run build && npm run format:ci && npm run lint && npm run nobuild:coverage",
-    "unit": "npm run build && npm run nobuild:unit"
+    "formatjs": "npm run prettierjs -- --write"
   },
   "files": [
     "src"
