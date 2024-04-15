@@ -42,10 +42,6 @@
     "test": "npm run build && npm run format:ci && npm run lint && npm run nobuild:coverage",
     "unit": "npm run build && npm run nobuild:unit"
   },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/bitcoinjs/bitcoinjs-lib.git"
-  },
   "files": [
     "src"
   ],
