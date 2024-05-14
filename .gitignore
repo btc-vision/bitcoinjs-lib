@@ -8,3 +8,4 @@ test/integration/*.js
 docs
 plugin
 package-lock.json
+.idea
