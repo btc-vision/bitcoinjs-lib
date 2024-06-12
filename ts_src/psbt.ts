@@ -343,7 +343,10 @@ export class Psbt {
     return this;
   }
 
-  extractTransaction(disableFeeCheck?: boolean): Transaction {
+  extractTransaction(disableFeeCheck?: boolean, disableOutputChecks?: boolean): Transaction {
+    // @ts-ignore
+    if(disableOutputChecks) this.data.inputs = this.data.inputs.filter(i => !i.partialSig);
+
     if (!this.data.inputs.every(isFinalized)) throw new Error('Not finalized');
     const c = this.__CACHE;
     if (!disableFeeCheck) {
@@ -351,7 +354,7 @@ export class Psbt {
     }
     if (c.__EXTRACTED_TX) return c.__EXTRACTED_TX;
     const tx = c.__TX.clone();
-    inputFinalizeGetAmts(this.data.inputs, tx, c, true);
+    inputFinalizeGetAmts(this.data.inputs, tx, c, true, disableOutputChecks);
     return tx;
   }
 
@@ -2032,6 +2035,7 @@ function inputFinalizeGetAmts(
   tx: Transaction,
   cache: PsbtCache,
   mustFinalize: boolean,
+  disableOutputChecks?: boolean
 ): void {
   let inputAmount = 0;
   inputs.forEach((input, idx) => {
@@ -2056,8 +2060,10 @@ function inputFinalizeGetAmts(
     0,
   );
   const fee = inputAmount - outputAmount;
-  if (fee < 0) {
-    throw new Error('Outputs are spending more than Inputs');
+  if(!disableOutputChecks) {
+    if (fee < 0) {
+      throw new Error('Outputs are spending more than Inputs');
+    }
   }
   const bytes = tx.virtualSize();
   cache.__FEE = fee;

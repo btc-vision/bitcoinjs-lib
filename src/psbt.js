@@ -253,7 +253,10 @@ class Psbt {
     c.__EXTRACTED_TX = undefined;
     return this;
   }
-  extractTransaction(disableFeeCheck) {
+  extractTransaction(disableFeeCheck, disableOutputChecks) {
+    // @ts-ignore
+    if (disableOutputChecks)
+      this.data.inputs = this.data.inputs.filter(i => !i.partialSig);
     if (!this.data.inputs.every(isFinalized)) throw new Error('Not finalized');
     const c = this.__CACHE;
     if (!disableFeeCheck) {
@@ -261,7 +264,7 @@ class Psbt {
     }
     if (c.__EXTRACTED_TX) return c.__EXTRACTED_TX;
     const tx = c.__TX.clone();
-    inputFinalizeGetAmts(this.data.inputs, tx, c, true);
+    inputFinalizeGetAmts(this.data.inputs, tx, c, true, disableOutputChecks);
     return tx;
   }
   getFeeRate() {
@@ -1553,7 +1556,13 @@ function addNonWitnessTxCache(cache, input, inputIndex) {
     },
   });
 }
-function inputFinalizeGetAmts(inputs, tx, cache, mustFinalize) {
+function inputFinalizeGetAmts(
+  inputs,
+  tx,
+  cache,
+  mustFinalize,
+  disableOutputChecks,
+) {
   let inputAmount = 0;
   inputs.forEach((input, idx) => {
     if (mustFinalize && input.finalScriptSig)
@@ -1574,8 +1583,10 @@ function inputFinalizeGetAmts(inputs, tx, cache, mustFinalize) {
   });
   const outputAmount = tx.outs.reduce((total, o) => total + o.value, 0);
   const fee = inputAmount - outputAmount;
-  if (fee < 0) {
-    throw new Error('Outputs are spending more than Inputs');
+  if (!disableOutputChecks) {
+    if (fee < 0) {
+      throw new Error('Outputs are spending more than Inputs');
+    }
   }
   const bytes = tx.virtualSize();
   cache.__FEE = fee;
