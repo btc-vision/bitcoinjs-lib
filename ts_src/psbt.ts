@@ -338,7 +338,7 @@ export class Psbt {
     if (typeof address === 'string') {
       const { network } = this.opts;
       const script = toOutputScript(address, network);
-      outputData = Object.assign(outputData, { script });
+      outputData = Object.assign({}, outputData, { script });
     }
     checkTaprootOutputFields(outputData, outputData, 'addOutput');
 
@@ -1822,7 +1822,7 @@ function getTaprootHashesForSig(
         inputIndex,
         signingScripts,
         values,
-        Transaction.SIGHASH_DEFAULT,
+        sighashType,
         tapLeaf.hash,
       );
 

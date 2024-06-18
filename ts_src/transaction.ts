@@ -415,6 +415,8 @@ export class Transaction {
     }
 
     if (!(isNone || isSingle)) {
+      if (!this.outs.length)
+        throw new Error('Add outputs to the transaction before signing.');
       const txOutsSize = this.outs
         .map(output => 8 + varSliceSize(output.script))
         .reduce((a, b) => a + b);

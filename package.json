@@ -1,6 +1,6 @@
 {
   "name": "bitcoinjs-lib",
-  "version": "6.1.8",
+  "version": "6.1.6",
   "description": "Client-side Bitcoin JavaScript library",
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
@@ -15,7 +15,6 @@
     "bitcoinjs"
   ],
   "scripts": {
-    "formatjs": "npm run prettierjs -- --write",
     "audit": "better-npm-audit audit -l high",
     "build": "npm run clean && tsc -p ./tsconfig.json && npm run formatjs",
     "build:tests": "npm run clean:jstests && tsc -p ./test/tsconfig.json",
@@ -25,6 +24,8 @@
     "coverage-html": "npm run build && npm run nobuild:coverage-html",
     "coverage": "npm run build && npm run nobuild:coverage",
     "doc": "typedoc",
+    "format": "npm run prettier -- --write",
+    "formatjs": "npm run prettierjs -- --write",
     "format:ci": "npm run prettier -- --check && npm run prettierjs -- --check",
     "gitdiff:ci": "npm run build && git diff --exit-code",
     "integration": "npm run build && npm run nobuild:integration",
@@ -40,6 +41,10 @@
     "prettierjs": "prettier \"src/**/*.js\" --ignore-path ./.prettierignore",
     "test": "npm run build && npm run format:ci && npm run lint && npm run nobuild:coverage",
     "unit": "npm run build && npm run nobuild:unit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bitcoinjs/bitcoinjs-lib.git"
   },
   "files": [
     "src"
