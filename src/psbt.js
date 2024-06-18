@@ -154,8 +154,10 @@ class Psbt {
   }
   clone() {
     // TODO: more efficient cloning
-    const res = Psbt.fromBuffer(this.data.toBuffer());
-    res.opts = JSON.parse(JSON.stringify(this.opts));
+    const res = Psbt.fromBuffer(
+      this.data.toBuffer(),
+      JSON.parse(JSON.stringify(this.opts)),
+    );
     return res;
   }
   setMaximumFeeRate(satoshiPerByte) {
@@ -254,9 +256,9 @@ class Psbt {
     return this;
   }
   extractTransaction(disableFeeCheck, disableOutputChecks) {
-    // @ts-ignore
-    if (disableOutputChecks)
+    if (disableOutputChecks) {
       this.data.inputs = this.data.inputs.filter(i => !i.partialSig);
+    }
     if (!this.data.inputs.every(isFinalized)) throw new Error('Not finalized');
     const c = this.__CACHE;
     if (!disableFeeCheck) {
@@ -267,16 +269,23 @@ class Psbt {
     inputFinalizeGetAmts(this.data.inputs, tx, c, true, disableOutputChecks);
     return tx;
   }
-  getFeeRate() {
+  getFeeRate(disableOutputChecks = false) {
     return getTxCacheValue(
       '__FEE_RATE',
       'fee rate',
       this.data.inputs,
       this.__CACHE,
+      disableOutputChecks,
     );
   }
-  getFee() {
-    return getTxCacheValue('__FEE', 'fee', this.data.inputs, this.__CACHE);
+  getFee(disableOutputChecks = false) {
+    return getTxCacheValue(
+      '__FEE',
+      'fee',
+      this.data.inputs,
+      this.__CACHE,
+      disableOutputChecks,
+    );
   }
   finalizeAllInputs() {
     (0, utils_1.checkForInput)(this.data.inputs, 0); // making sure we have at least one
@@ -1113,7 +1122,7 @@ const checkWitnessScript = scriptCheckerFactory(
   payments.p2wsh,
   'Witness script',
 );
-function getTxCacheValue(key, name, inputs, c) {
+function getTxCacheValue(key, name, inputs, c, disableOutputChecks = false) {
   if (!inputs.every(isFinalized))
     throw new Error(`PSBT must be finalized to calculate ${name}`);
   if (key === '__FEE_RATE' && c.__FEE_RATE) return c.__FEE_RATE;
@@ -1126,7 +1135,7 @@ function getTxCacheValue(key, name, inputs, c) {
   } else {
     tx = c.__TX.clone();
   }
-  inputFinalizeGetAmts(inputs, tx, c, mustFinalize);
+  inputFinalizeGetAmts(inputs, tx, c, mustFinalize, disableOutputChecks);
   if (key === '__FEE_RATE') return c.__FEE_RATE;
   else if (key === '__FEE') return c.__FEE;
 }
