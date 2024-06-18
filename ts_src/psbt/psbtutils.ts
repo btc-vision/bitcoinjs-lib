@@ -15,6 +15,7 @@ function isPaymentFactory(payment: any): (script: Buffer) => boolean {
     }
   };
 }
+
 export const isP2MS = isPaymentFactory(payments.p2ms);
 export const isP2PK = isPaymentFactory(payments.p2pk);
 export const isP2PKH = isPaymentFactory(payments.p2pkh);
@@ -114,6 +115,7 @@ type SignatureDecodeFunc = (buffer: Buffer) => {
   signature: Buffer;
   hashType: number;
 };
+
 /**
  * Determines if a given action is allowed for a signature block.
  * @param signature - The signature block.

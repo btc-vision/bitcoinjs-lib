@@ -263,6 +263,7 @@ type PartialTaptree =
   | [PartialTaptree | Tapleaf, PartialTaptree | Tapleaf]
   | Tapleaf
   | undefined;
+
 function instertLeavesInTree(leaves: TapLeaf[]): Taptree {
   let tree: PartialTaptree;
   for (const leaf of leaves) {
@@ -316,6 +317,7 @@ function checkMixedTaprootAndNonTaprootInputFields(
         `Cannot use both taproot and non-taproot fields.`,
     );
 }
+
 function checkMixedTaprootAndNonTaprootOutputFields(
   inputData: PsbtOutput,
   newInputData: PsbtOutput,

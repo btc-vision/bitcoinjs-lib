@@ -9,6 +9,7 @@ import * as pushdata from './push_data';
 import * as scriptNumber from './script_number';
 import * as scriptSignature from './script_signature';
 import * as types from './types';
+
 const { typeforce } = types;
 
 const OP_INT_BASE = OPS.OP_RESERVED; // OP_1 - 1

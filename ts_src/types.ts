@@ -47,6 +47,7 @@ export function isPoint(p: Buffer | number | undefined | null): boolean {
 }
 
 const SATOSHI_MAX: number = 21 * 1e14;
+
 export function Satoshi(value: number): boolean {
   return typeforce.UInt53(value) && value <= SATOSHI_MAX;
 }
@@ -62,6 +63,7 @@ export interface Tapleaf {
 }
 
 export const TAPLEAF_VERSION_MASK = 0xfe;
+
 export function isTapleaf(o: any): o is Tapleaf {
   if (!o || !('output' in o)) return false;
   if (!NBuffer.isBuffer(o.output)) return false;
@@ -85,6 +87,7 @@ export function isTaptree(scriptTree: any): scriptTree is Taptree {
 
 export interface TinySecp256k1Interface {
   isXOnlyPoint(p: Uint8Array): boolean;
+
   xOnlyPointAddTweak(
     p: Uint8Array,
     tweak: Uint8Array,

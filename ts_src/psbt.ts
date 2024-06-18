@@ -87,6 +87,11 @@ const DEFAULT_OPTS: PsbtOpts = {
   maximumFeeRate: 5000, // satoshi per byte
 };
 
+// Not a breaking change.
+export interface PsbtBaseExtended extends Omit<PsbtBase, 'inputs'> {
+  inputs: PsbtInput[];
+}
+
 /**
  * Psbt class can parse and generate a PSBT binary based off of the BIP174.
  * There are 6 roles that this class fulfills. (Explained in BIP174)
@@ -142,12 +147,12 @@ export class Psbt {
     return psbt;
   }
 
-  private __CACHE: PsbtCache;
-  private opts: PsbtOpts;
+  private readonly __CACHE: PsbtCache;
+  private readonly opts: PsbtOpts;
 
   constructor(
     opts: PsbtOptsOptional = {},
-    readonly data: PsbtBase = new PsbtBase(new PsbtTransaction()),
+    public data: PsbtBaseExtended = new PsbtBase(new PsbtTransaction()),
   ) {
     // set defaults
     this.opts = Object.assign({}, DEFAULT_OPTS, opts);
@@ -232,8 +237,10 @@ export class Psbt {
 
   clone(): Psbt {
     // TODO: more efficient cloning
-    const res = Psbt.fromBuffer(this.data.toBuffer());
-    res.opts = JSON.parse(JSON.stringify(this.opts));
+    const res = Psbt.fromBuffer(
+      this.data.toBuffer(),
+      JSON.parse(JSON.stringify(this.opts)),
+    );
     return res;
   }
 
@@ -343,9 +350,13 @@ export class Psbt {
     return this;
   }
 
-  extractTransaction(disableFeeCheck?: boolean, disableOutputChecks?: boolean): Transaction {
-    // @ts-ignore
-    if(disableOutputChecks) this.data.inputs = this.data.inputs.filter(i => !i.partialSig);
+  extractTransaction(
+    disableFeeCheck?: boolean,
+    disableOutputChecks?: boolean,
+  ): Transaction {
+    if (disableOutputChecks) {
+      this.data.inputs = this.data.inputs.filter(i => !i.partialSig);
+    }
 
     if (!this.data.inputs.every(isFinalized)) throw new Error('Not finalized');
     const c = this.__CACHE;
@@ -358,17 +369,24 @@ export class Psbt {
     return tx;
   }
 
-  getFeeRate(): number {
+  getFeeRate(disableOutputChecks: boolean = false): number {
     return getTxCacheValue(
       '__FEE_RATE',
       'fee rate',
       this.data.inputs,
       this.__CACHE,
+      disableOutputChecks,
     )!;
   }
 
-  getFee(): number {
-    return getTxCacheValue('__FEE', 'fee', this.data.inputs, this.__CACHE)!;
+  getFee(disableOutputChecks: boolean = false): number {
+    return getTxCacheValue(
+      '__FEE',
+      'fee',
+      this.data.inputs,
+      this.__CACHE,
+      disableOutputChecks,
+    )!;
   }
 
   finalizeAllInputs(): this {
@@ -1187,6 +1205,7 @@ export interface HDSigner extends HDSignerBase {
    * ex. m/44'/0'/0'/1/23 levels with ' must be hard derivations
    */
   derivePath(path: string): HDSigner;
+
   /**
    * Input hash (the "message digest") for the signature algorithm
    * Return a 64 byte signature (32 byte r and 32 byte s in that order)
@@ -1199,22 +1218,29 @@ export interface HDSigner extends HDSignerBase {
  */
 export interface HDSignerAsync extends HDSignerBase {
   derivePath(path: string): HDSignerAsync;
+
   sign(hash: Buffer): Promise<Buffer>;
 }
 
 export interface Signer {
   publicKey: Buffer;
   network?: any;
+
   sign(hash: Buffer, lowR?: boolean): Buffer;
+
   signSchnorr?(hash: Buffer): Buffer;
+
   getPublicKey?(): Buffer;
 }
 
 export interface SignerAsync {
   publicKey: Buffer;
   network?: any;
+
   sign(hash: Buffer, lowR?: boolean): Promise<Buffer>;
+
   signSchnorr?(hash: Buffer): Promise<Buffer>;
+
   getPublicKey?(): Buffer;
 }
 
@@ -1233,6 +1259,7 @@ const transactionFromBuffer: TransactionFromBuffer = (
  */
 class PsbtTransaction implements ITransaction {
   tx: Transaction;
+
   constructor(buffer: Buffer = Buffer.from([2, 0, 0, 0, 0, 0, 0, 0, 0, 0])) {
     this.tx = Transaction.fromBuffer(buffer);
     checkTxEmpty(this.tx);
@@ -1454,6 +1481,7 @@ function scriptCheckerFactory(
     }
   };
 }
+
 const checkRedeemScript = scriptCheckerFactory(payments.p2sh, 'Redeem script');
 const checkWitnessScript = scriptCheckerFactory(
   payments.p2wsh,
@@ -1461,11 +1489,13 @@ const checkWitnessScript = scriptCheckerFactory(
 );
 
 type TxCacheNumberKey = '__FEE_RATE' | '__FEE';
+
 function getTxCacheValue(
   key: TxCacheNumberKey,
   name: string,
   inputs: PsbtInput[],
   c: PsbtCache,
+  disableOutputChecks: boolean = false,
 ): number | undefined {
   if (!inputs.every(isFinalized))
     throw new Error(`PSBT must be finalized to calculate ${name}`);
@@ -1479,7 +1509,7 @@ function getTxCacheValue(
   } else {
     tx = c.__TX.clone();
   }
-  inputFinalizeGetAmts(inputs, tx, c, mustFinalize);
+  inputFinalizeGetAmts(inputs, tx, c, mustFinalize, disableOutputChecks);
   if (key === '__FEE_RATE') return c.__FEE_RATE!;
   else if (key === '__FEE') return c.__FEE!;
 }
@@ -1863,6 +1893,7 @@ interface GetScriptReturn {
   isP2SH: boolean;
   isP2WSH: boolean;
 }
+
 function getScriptFromInput(
   inputIndex: number,
   input: PsbtInput,
@@ -2035,7 +2066,7 @@ function inputFinalizeGetAmts(
   tx: Transaction,
   cache: PsbtCache,
   mustFinalize: boolean,
-  disableOutputChecks?: boolean
+  disableOutputChecks?: boolean,
 ): void {
   let inputAmount = 0;
   inputs.forEach((input, idx) => {
@@ -2060,7 +2091,7 @@ function inputFinalizeGetAmts(
     0,
   );
   const fee = inputAmount - outputAmount;
-  if(!disableOutputChecks) {
+  if (!disableOutputChecks) {
     if (fee < 0) {
       throw new Error('Outputs are spending more than Inputs');
     }
@@ -2278,6 +2309,7 @@ type ScriptType =
   | 'multisig'
   | 'pubkey'
   | 'nonstandard';
+
 function classifyScript(script: Buffer): ScriptType {
   if (isP2WPKH(script)) return 'witnesspubkeyhash';
   if (isP2PKH(script)) return 'pubkeyhash';

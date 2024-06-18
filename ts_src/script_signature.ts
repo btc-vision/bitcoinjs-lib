@@ -1,9 +1,11 @@
 import * as bip66 from './bip66';
 import { isDefinedHashType } from './script';
 import * as types from './types';
+
 const { typeforce } = types;
 
 const ZERO = Buffer.alloc(1, 0);
+
 /**
  * Converts a buffer to a DER-encoded buffer.
  * @param x - The buffer to be converted.
