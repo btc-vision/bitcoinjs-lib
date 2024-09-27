@@ -171,8 +171,10 @@ export class Psbt {
   }
   clone() {
     // TODO: more efficient cloning
-    const res = Psbt.fromBuffer(this.data.toBuffer());
-    res.opts = JSON.parse(JSON.stringify(this.opts));
+    const res = Psbt.fromBuffer(
+      this.data.toBuffer(),
+      JSON.parse(JSON.stringify(this.opts)),
+    );
     return res;
   }
   setMaximumFeeRate(satoshiPerByte) {
@@ -270,7 +272,10 @@ export class Psbt {
     c.__EXTRACTED_TX = undefined;
     return this;
   }
-  extractTransaction(disableFeeCheck) {
+  extractTransaction(disableFeeCheck, disableOutputChecks) {
+    if (disableOutputChecks) {
+      this.data.inputs = this.data.inputs.filter(i => !i.partialSig);
+    }
     if (!this.data.inputs.every(isFinalized)) throw new Error('Not finalized');
     const c = this.__CACHE;
     if (!disableFeeCheck) {
@@ -278,19 +283,26 @@ export class Psbt {
     }
     if (c.__EXTRACTED_TX) return c.__EXTRACTED_TX;
     const tx = c.__TX.clone();
-    inputFinalizeGetAmts(this.data.inputs, tx, c, true);
+    inputFinalizeGetAmts(this.data.inputs, tx, c, true, disableOutputChecks);
     return tx;
   }
-  getFeeRate() {
+  getFeeRate(disableOutputChecks = false) {
     return getTxCacheValue(
       '__FEE_RATE',
       'fee rate',
       this.data.inputs,
       this.__CACHE,
+      disableOutputChecks,
     );
   }
-  getFee() {
-    return getTxCacheValue('__FEE', 'fee', this.data.inputs, this.__CACHE);
+  getFee(disableOutputChecks = false) {
+    return getTxCacheValue(
+      '__FEE',
+      'fee',
+      this.data.inputs,
+      this.__CACHE,
+      disableOutputChecks,
+    );
   }
   finalizeAllInputs() {
     checkForInput(this.data.inputs, 0); // making sure we have at least one
@@ -1103,7 +1115,7 @@ const checkWitnessScript = scriptCheckerFactory(
   payments.p2wsh,
   'Witness script',
 );
-function getTxCacheValue(key, name, inputs, c) {
+function getTxCacheValue(key, name, inputs, c, disableOutputChecks = false) {
   if (!inputs.every(isFinalized))
     throw new Error(`PSBT must be finalized to calculate ${name}`);
   if (key === '__FEE_RATE' && c.__FEE_RATE) return c.__FEE_RATE;
@@ -1116,7 +1128,7 @@ function getTxCacheValue(key, name, inputs, c) {
   } else {
     tx = c.__TX.clone();
   }
-  inputFinalizeGetAmts(inputs, tx, c, mustFinalize);
+  inputFinalizeGetAmts(inputs, tx, c, mustFinalize, disableOutputChecks);
   if (key === '__FEE_RATE') return c.__FEE_RATE;
   else if (key === '__FEE') return c.__FEE;
 }
@@ -1542,7 +1554,13 @@ function addNonWitnessTxCache(cache, input, inputIndex) {
     },
   });
 }
-function inputFinalizeGetAmts(inputs, tx, cache, mustFinalize) {
+function inputFinalizeGetAmts(
+  inputs,
+  tx,
+  cache,
+  mustFinalize,
+  disableOutputChecks,
+) {
   let inputAmount = 0n;
   inputs.forEach((input, idx) => {
     if (mustFinalize && input.finalScriptSig)
@@ -1563,8 +1581,10 @@ function inputFinalizeGetAmts(inputs, tx, cache, mustFinalize) {
   });
   const outputAmount = tx.outs.reduce((total, o) => total + o.value, 0n);
   const fee = inputAmount - outputAmount;
-  if (fee < 0) {
-    throw new Error('Outputs are spending more than Inputs');
+  if (!disableOutputChecks) {
+    if (fee < 0) {
+      throw new Error('Outputs are spending more than Inputs');
+    }
   }
   const bytes = tx.virtualSize();
   cache.__FEE = fee;
