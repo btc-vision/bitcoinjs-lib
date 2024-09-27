@@ -242,11 +242,18 @@ describe(`Psbt`, () => {
                             ECPair.fromWIF(f.shouldSign.WIF),
                             f.shouldSign.sighashTypes || undefined,
                         );
-                        if (f.shouldSign.result)
+                        if (f.shouldSign.result) {
+                            console.log(
+                                'checking result',
+                                f.shouldSign.result,
+                                psbtThatShouldsign.toBase64(),
+                            );
                             assert.strictEqual(
                                 psbtThatShouldsign.toBase64(),
                                 f.shouldSign.result,
                             );
+                            console.log('results are equal');
+                        }
                     });
                     const failMessage = f.isTaproot
                         ? /Need Schnorr Signer to sign taproot input #0./
