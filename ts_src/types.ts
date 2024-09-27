@@ -47,6 +47,12 @@ export function isPoint(p: Uint8Array | number | undefined | null): boolean {
   return false;
 }
 
+const SATOSHI_MAX: number = 21 * 1e14;
+
+export function Satoshi(value: number): boolean {
+  return typeforce.UInt53(value) && value <= SATOSHI_MAX;
+}
+
 export interface XOnlyPointAddTweakResult {
   parity: 1 | 0;
   xOnlyPubkey: Uint8Array;

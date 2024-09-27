@@ -5,16 +5,13 @@
  * @packageDocumentation
  */
 import { ripemd160 } from '@noble/hashes/ripemd160';
-import { sha256 as _sha256 } from '@noble/hashes/sha256';
+import { sha256 } from '@noble/hashes/sha256';
 import * as tools from 'uint8array-tools';
 export function hash160(buffer) {
-  return ripemd160(_sha256(buffer));
+  return ripemd160(sha256(buffer));
 }
 export function hash256(buffer) {
-  return _sha256(_sha256(buffer));
-}
-export function sha256(buf) {
-  return _sha256(buf);
+  return sha256(sha256(buffer));
 }
 export const TAGS = [
   'BIP0340/challenge',

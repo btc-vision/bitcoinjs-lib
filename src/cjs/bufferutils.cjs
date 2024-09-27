@@ -56,7 +56,7 @@ const MAX_JS_NUMBER = 0x001fffffffffffff;
 // https://github.com/feross/buffer/blob/master/index.js#L1127
 function verifuint(value, max) {
   if (typeof value !== 'number' && typeof value !== 'bigint')
-    throw new Error('Cannot write a non-number as a number');
+    throw new Error('cannot write a non-number as a number');
   if (value < 0 && value < BigInt(0))
     throw new Error('specified a negative value for writing an unsigned value');
   if (value > max && value > BigInt(max))
@@ -70,15 +70,6 @@ function verifuint(value, max) {
  * @returns A new buffer with the bytes reversed.
  */
 function reverseBuffer(buffer) {
-  // Efficient in-place reversal if possible
-  const reversed = new Uint8Array(buffer.length);
-  for (let i = 0, j = buffer.length - 1; i <= j; ++i, --j) {
-    reversed[i] = buffer[j];
-    reversed[j] = buffer[i];
-  }
-  return reversed;
-}
-/*export function reverseBuffer(buffer: Uint8Array): Uint8Array {
   if (buffer.length < 1) return buffer;
   let j = buffer.length - 1;
   let tmp = 0;
@@ -89,7 +80,7 @@ function reverseBuffer(buffer) {
     j--;
   }
   return buffer;
-}*/
+}
 function cloneBuffer(buffer) {
   const clone = new Uint8Array(buffer.length);
   clone.set(buffer);

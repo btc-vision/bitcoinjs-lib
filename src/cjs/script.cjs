@@ -223,9 +223,7 @@ function fromASM(asm) {
   return compile(
     asm.split(' ').map(chunkStr => {
       // opcode?
-      if (ops_js_1.OPS[chunkStr] !== undefined) {
-        return ops_js_1.OPS[chunkStr];
-      }
+      if (ops_js_1.OPS[chunkStr] !== undefined) return ops_js_1.OPS[chunkStr];
       v.parse(types.HexSchema, chunkStr);
       // data!
       return tools.fromHex(chunkStr);
