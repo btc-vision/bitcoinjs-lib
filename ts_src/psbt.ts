@@ -74,18 +74,6 @@ export type ValidateSigFunction = (
     signature: Buffer,
 ) => boolean;
 
-/*const reverseBufferLRU = new LRUCache<string, Buffer>(100);
-
-function reverseBufferWithCache(str: string, buffer: Buffer): Buffer {
-    let bufferReversed: Buffer | undefined = reverseBufferLRU.get(str);
-    if (!bufferReversed) {
-        bufferReversed = reverseBuffer(buffer);
-        reverseBufferLRU.set(str, bufferReversed);
-    }
-
-    return bufferReversed;
-}*/
-
 /**
  * These are the default arguments for a Psbt instance.
  */
@@ -307,39 +295,20 @@ export class Psbt {
             );
         }
 
-        let s = Date.now();
         checkTaprootInputFields(inputData, inputData, 'addInput');
-        console.log('checkTaprootInputFields', Date.now() - s);
-
-        s = Date.now();
         checkInputsForPartialSig(this.data.inputs, 'addInput');
-        console.log('checkInputsForPartialSig', Date.now() - s);
 
-        s = Date.now();
         if (inputData.witnessScript) checkInvalidP2WSH(inputData.witnessScript);
-        console.log('checkInvalidP2WSH', Date.now() - s);
-
         const c = this.__CACHE;
-
-        s = Date.now();
         this.data.addInput(inputData);
-        console.log('addInput', Date.now() - s);
-
         const txIn = c.__TX.ins[c.__TX.ins.length - 1];
-
-        s = Date.now();
         checkTxInputCache(c, txIn);
-        console.log('checkTxInputCache', Date.now() - s);
 
         const inputIndex = this.data.inputs.length - 1;
         const input = this.data.inputs[inputIndex];
-
         if (input.nonWitnessUtxo) {
-            s = Date.now();
             addNonWitnessTxCache(this.__CACHE, input, inputIndex);
-            console.log('addNonWitnessTxCache', Date.now() - s);
         }
-
         c.__FEE = undefined;
         c.__FEE_RATE = undefined;
         c.__EXTRACTED_TX = undefined;
@@ -1403,7 +1372,6 @@ class PsbtTransaction implements ITransaction {
         ) {
             throw new Error('Error adding input.');
         }
-
         const hash =
             typeof input.hash === 'string'
                 ? reverseBuffer(Buffer.from(input.hash, 'hex'))
@@ -1576,7 +1544,10 @@ function checkTxInputCache(
     cache: PsbtCache,
     input: { hash: Buffer; index: number },
 ): void {
-    const key = reverseBuffer(input.hash).toString('hex') + ':' + input.index;
+    const key =
+        reverseBuffer(Buffer.from(input.hash)).toString('hex') +
+        ':' +
+        input.index;
     if (cache.__TX_IN_CACHE[key]) throw new Error('Duplicate input detected.');
     cache.__TX_IN_CACHE[key] = 1;
 }
