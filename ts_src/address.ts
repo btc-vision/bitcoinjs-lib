@@ -7,18 +7,20 @@
  *
  * @packageDocumentation
  */
-import { Network } from './networks';
-import * as networks from './networks';
-import * as payments from './payments';
-import * as bscript from './script';
-import { typeforce, tuple, Hash160bit, UInt8 } from './types';
+import { Network } from './networks.js';
+import * as networks from './networks.js';
+import * as payments from './payments/index.js';
+import * as bscript from './script.js';
+import { Hash160bitSchema, UInt8Schema } from './types.js';
 import { bech32, bech32m } from 'bech32';
-import * as bs58check from 'bs58check';
+import bs58check from 'bs58check';
+import * as tools from 'uint8array-tools';
+import * as v from 'valibot';
 
 /** base58check decode result */
 export interface Base58CheckResult {
   /** address hash */
-  hash: Buffer;
+  hash: Uint8Array;
   /** address version: 0x00 for P2PKH, 0x05 for P2SH */
   version: number;
 }
@@ -30,7 +32,7 @@ export interface Bech32Result {
   /** address prefix: bc for P2WPKH、P2WSH、P2TR */
   prefix: string;
   /** address data：20 bytes for P2WPKH, 32 bytes for P2WSH、P2TR */
-  data: Buffer;
+  data: Uint8Array;
 }
 
 const FUTURE_SEGWIT_MAX_SIZE: number = 40;
@@ -44,7 +46,14 @@ const FUTURE_SEGWIT_VERSION_WARNING: string =
   'with caution. Wallets should verify the segwit version from the output of fromBech32, ' +
   'then decide when it is safe to use which version of segwit.';
 
-function _toFutureSegwitAddress(output: Buffer, network: Network): string {
+/**
+ * Converts an output buffer to a future segwit address.
+ * @param output - The output buffer.
+ * @param network - The network object.
+ * @returns The future segwit address.
+ * @throws {TypeError} If the program length or version is invalid for segwit address.
+ */
+function _toFutureSegwitAddress(output: Uint8Array, network: Network): string {
   const data = output.slice(2);
 
   if (
@@ -70,23 +79,30 @@ function _toFutureSegwitAddress(output: Buffer, network: Network): string {
 }
 
 /**
- * decode address with base58 specification,  return address version and address hash if valid
+ * Decodes a base58check encoded Bitcoin address and returns the version and hash.
+ *
+ * @param address - The base58check encoded Bitcoin address to decode.
+ * @returns An object containing the version and hash of the decoded address.
+ * @throws {TypeError} If the address is too short or too long.
  */
 export function fromBase58Check(address: string): Base58CheckResult {
-  const payload = Buffer.from(bs58check.decode(address));
+  const payload = bs58check.decode(address);
 
   // TODO: 4.0.0, move to "toOutputScript"
   if (payload.length < 21) throw new TypeError(address + ' is too short');
   if (payload.length > 21) throw new TypeError(address + ' is too long');
 
-  const version = payload.readUInt8(0);
+  const version = tools.readUInt8(payload, 0);
   const hash = payload.slice(1);
 
   return { version, hash };
 }
 
 /**
- * decode address with bech32 specification,  return address version、address prefix and address data if valid
+ * Converts a Bech32 or Bech32m encoded address to its corresponding data representation.
+ * @param address - The Bech32 or Bech32m encoded address.
+ * @returns An object containing the version, prefix, and data of the address.
+ * @throws {TypeError} If the address uses the wrong encoding.
  */
 export function fromBech32(address: string): Bech32Result {
   let result;
@@ -109,28 +125,35 @@ export function fromBech32(address: string): Bech32Result {
   return {
     version,
     prefix: result.prefix,
-    data: Buffer.from(data),
+    data: Uint8Array.from(data),
   };
 }
 
 /**
- * encode address hash to base58 address with version
+ * Converts a hash to a Base58Check-encoded string.
+ * @param hash - The hash to be encoded.
+ * @param version - The version byte to be prepended to the encoded string.
+ * @returns The Base58Check-encoded string.
  */
-export function toBase58Check(hash: Buffer, version: number): string {
-  typeforce(tuple(Hash160bit, UInt8), arguments);
+export function toBase58Check(hash: Uint8Array, version: number): string {
+  v.parse(v.tuple([Hash160bitSchema, UInt8Schema]), [hash, version]);
 
-  const payload = Buffer.allocUnsafe(21);
-  payload.writeUInt8(version, 0);
-  hash.copy(payload, 1);
+  const payload = new Uint8Array(21);
+  tools.writeUInt8(payload, 0, version);
+  payload.set(hash, 1);
 
   return bs58check.encode(payload);
 }
 
 /**
- * encode address hash to bech32 address with version and prefix
+ * Converts a buffer to a Bech32 or Bech32m encoded string.
+ * @param data - The buffer to be encoded.
+ * @param version - The version number to be used in the encoding.
+ * @param prefix - The prefix string to be used in the encoding.
+ * @returns The Bech32 or Bech32m encoded string.
  */
 export function toBech32(
-  data: Buffer,
+  data: Uint8Array,
   version: number,
   prefix: string,
 ): string {
@@ -143,9 +166,16 @@ export function toBech32(
 }
 
 /**
- * decode address from output script with network, return address if matched
+ * Converts an output script to a Bitcoin address.
+ * @param output - The output script as a Buffer.
+ * @param network - The Bitcoin network (optional).
+ * @returns The Bitcoin address corresponding to the output script.
+ * @throws If the output script has no matching address.
  */
-export function fromOutputScript(output: Buffer, network?: Network): string {
+export function fromOutputScript(
+  output: Uint8Array,
+  network?: Network,
+): string {
   // TODO: Network
   network = network || networks.bitcoin;
 
@@ -172,9 +202,13 @@ export function fromOutputScript(output: Buffer, network?: Network): string {
 }
 
 /**
- * encodes address to output script with network, return output script if address matched
+ * Converts a Bitcoin address to its corresponding output script.
+ * @param address - The Bitcoin address to convert.
+ * @param network - The Bitcoin network to use. Defaults to the Bitcoin network.
+ * @returns The corresponding output script as a Buffer.
+ * @throws If the address has an invalid prefix or no matching script.
  */
-export function toOutputScript(address: string, network?: Network): Buffer {
+export function toOutputScript(address: string, network?: Network): Uint8Array {
   network = network || networks.bitcoin;
 
   let decodeBase58: Base58CheckResult | undefined;
@@ -185,9 +219,9 @@ export function toOutputScript(address: string, network?: Network): Buffer {
 
   if (decodeBase58) {
     if (decodeBase58.version === network.pubKeyHash)
-      return payments.p2pkh({ hash: decodeBase58.hash }).output as Buffer;
+      return payments.p2pkh({ hash: decodeBase58.hash }).output as Uint8Array;
     if (decodeBase58.version === network.scriptHash)
-      return payments.p2sh({ hash: decodeBase58.hash }).output as Buffer;
+      return payments.p2sh({ hash: decodeBase58.hash }).output as Uint8Array;
   } else {
     try {
       decodeBech32 = fromBech32(address);
@@ -198,12 +232,15 @@ export function toOutputScript(address: string, network?: Network): Buffer {
         throw new Error(address + ' has an invalid prefix');
       if (decodeBech32.version === 0) {
         if (decodeBech32.data.length === 20)
-          return payments.p2wpkh({ hash: decodeBech32.data }).output as Buffer;
+          return payments.p2wpkh({ hash: decodeBech32.data })
+            .output as Uint8Array;
         if (decodeBech32.data.length === 32)
-          return payments.p2wsh({ hash: decodeBech32.data }).output as Buffer;
+          return payments.p2wsh({ hash: decodeBech32.data })
+            .output as Uint8Array;
       } else if (decodeBech32.version === 1) {
         if (decodeBech32.data.length === 32)
-          return payments.p2tr({ pubkey: decodeBech32.data }).output as Buffer;
+          return payments.p2tr({ pubkey: decodeBech32.data })
+            .output as Uint8Array;
       } else if (
         decodeBech32.version >= FUTURE_SEGWIT_MIN_VERSION &&
         decodeBech32.version <= FUTURE_SEGWIT_MAX_VERSION &&
