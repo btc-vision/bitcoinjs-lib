@@ -65,6 +65,7 @@ export declare class Psbt {
     static fromBuffer(buffer: Uint8Array, opts?: PsbtOptsOptional): Psbt;
     private readonly __CACHE;
     private readonly opts;
+    private hasInputsWithPartialSig;
     constructor(opts?: PsbtOptsOptional, data?: PsbtBaseExtended);
     get inputCount(): number;
     get version(): number;
@@ -80,6 +81,7 @@ export declare class Psbt {
     setLocktime(locktime: number): this;
     setInputSequence(inputIndex: number, sequence: number): this;
     addInputs(inputDatas: PsbtInputExtended[]): this;
+    private checkInputsForPartialSig;
     addInput(inputData: PsbtInputExtended): this;
     addOutputs(outputDatas: PsbtOutputExtended[]): this;
     addOutput(outputData: PsbtOutputExtended): this;

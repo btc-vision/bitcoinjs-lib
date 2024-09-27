@@ -1,5 +1,11 @@
 export declare function hash160(buffer: Uint8Array): Uint8Array;
 export declare function hash256(buffer: Uint8Array): Uint8Array;
+export declare const sha256: {
+    (msg: import("@noble/hashes/utils").Input): Uint8Array;
+    outputLen: number;
+    blockLen: number;
+    create(): import("@noble/hashes/utils").Hash<import("@noble/hashes/sha256").SHA256>;
+};
 export declare const TAGS: readonly ["BIP0340/challenge", "BIP0340/aux", "BIP0340/nonce", "TapLeaf", "TapBranch", "TapSighash", "TapTweak", "KeyAgg list", "KeyAgg coefficient"];
 export type TaggedHashPrefix = (typeof TAGS)[number];
 type TaggedHashPrefixes = {

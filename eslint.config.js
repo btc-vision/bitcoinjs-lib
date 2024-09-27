@@ -19,7 +19,7 @@ export default [
     'eslint:recommended',
     'prettier',
     'plugin:@typescript-eslint/recommended',
-    'plugin:prettier/recommended',
+    //'plugin:prettier/recommended',
   ),
   {
     plugins: {

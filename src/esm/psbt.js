@@ -101,6 +101,7 @@ export class Psbt {
   }
   __CACHE;
   opts;
+  hasInputsWithPartialSig = false;
   constructor(opts = {}, data = new PsbtBase(new PsbtTransaction())) {
     this.data = data;
     // set defaults
@@ -183,7 +184,7 @@ export class Psbt {
   }
   setVersion(version) {
     check32Bit(version);
-    checkInputsForPartialSig(this.data.inputs, 'setVersion');
+    this.checkInputsForPartialSig('setVersion');
     const c = this.__CACHE;
     c.__TX.version = version;
     c.__EXTRACTED_TX = undefined;
@@ -191,7 +192,7 @@ export class Psbt {
   }
   setLocktime(locktime) {
     check32Bit(locktime);
-    checkInputsForPartialSig(this.data.inputs, 'setLocktime');
+    this.checkInputsForPartialSig('setLocktime');
     const c = this.__CACHE;
     c.__TX.locktime = locktime;
     c.__EXTRACTED_TX = undefined;
@@ -199,7 +200,7 @@ export class Psbt {
   }
   setInputSequence(inputIndex, sequence) {
     check32Bit(sequence);
-    checkInputsForPartialSig(this.data.inputs, 'setInputSequence');
+    this.checkInputsForPartialSig('setInputSequence');
     const c = this.__CACHE;
     if (c.__TX.ins.length <= inputIndex) {
       throw new Error('Input index too high');
@@ -211,6 +212,18 @@ export class Psbt {
   addInputs(inputDatas) {
     inputDatas.forEach(inputData => this.addInput(inputData));
     return this;
+  }
+  checkInputsForPartialSig(action) {
+    if (!this.hasInputsWithPartialSig) {
+      //
+    }
+    for (const input of this.data.inputs) {
+      const throws = isTaprootInput(input)
+        ? checkTaprootInputForSigs(input, action)
+        : checkInputForSig(input, action);
+      if (throws)
+        throw new Error('Can not modify transaction, signatures exist.');
+    }
   }
   addInput(inputData) {
     if (
@@ -224,18 +237,30 @@ export class Psbt {
           `Requires single object with at least [hash] and [index]`,
       );
     }
+    let s = Date.now();
     checkTaprootInputFields(inputData, inputData, 'addInput');
-    checkInputsForPartialSig(this.data.inputs, 'addInput');
+    console.log(`Took ${Date.now() - s}ms to checkTaprootInputFields`);
+    s = Date.now();
+    this.checkInputsForPartialSig('addInput');
+    console.log(`Took ${Date.now() - s}ms to checkInputsForPartialSig`);
+    s = Date.now();
     if (inputData.witnessScript) checkInvalidP2WSH(inputData.witnessScript);
+    console.log(`Took ${Date.now() - s}ms to checkInvalidP2WSH`);
     const c = this.__CACHE;
+    s = Date.now();
     this.data.addInput(inputData);
+    console.log(`Took ${Date.now() - s}ms to addInput`);
+    s = Date.now();
     const txIn = c.__TX.ins[c.__TX.ins.length - 1];
     checkTxInputCache(c, txIn);
+    console.log(`Took ${Date.now() - s}ms to checkTxInputCache`);
     const inputIndex = this.data.inputs.length - 1;
     const input = this.data.inputs[inputIndex];
+    s = Date.now();
     if (input.nonWitnessUtxo) {
       addNonWitnessTxCache(this.__CACHE, input, inputIndex);
     }
+    console.log(`Took ${Date.now() - s}ms to addNonWitnessTxCache`);
     c.__FEE = undefined;
     c.__FEE_RATE = undefined;
     c.__EXTRACTED_TX = undefined;
@@ -257,7 +282,7 @@ export class Psbt {
           `Requires single object with at least [script or address] and [value]`,
       );
     }
-    checkInputsForPartialSig(this.data.inputs, 'addOutput');
+    this.checkInputsForPartialSig('addOutput');
     const { address } = outputData;
     if (typeof address === 'string') {
       const { network } = this.opts;
@@ -694,6 +719,7 @@ export class Psbt {
         signature: bscript.signature.encode(keyPair.sign(hash), sighashType),
       },
     ];
+    this.hasInputsWithPartialSig = true;
     this.data.updateInput(inputIndex, { partialSig });
     return this;
   }
@@ -731,9 +757,11 @@ export class Psbt {
       }));
     if (tapKeySig) {
       this.data.updateInput(inputIndex, { tapKeySig });
+      this.hasInputsWithPartialSig = true;
     }
     if (tapScriptSig.length) {
       this.data.updateInput(inputIndex, { tapScriptSig });
+      this.hasInputsWithPartialSig = true;
     }
     return this;
   }
@@ -769,7 +797,7 @@ export class Psbt {
       throw new Error(`Input #${inputIndex} is not of type Taproot.`);
     });
   }
-  _signInputAsync(
+  async _signInputAsync(
     inputIndex,
     keyPair,
     sighashTypes = [Transaction.SIGHASH_ALL],
@@ -781,15 +809,15 @@ export class Psbt {
       this.__CACHE,
       sighashTypes,
     );
-    return Promise.resolve(keyPair.sign(hash)).then(signature => {
-      const partialSig = [
-        {
-          pubkey: keyPair.publicKey,
-          signature: bscript.signature.encode(signature, sighashType),
-        },
-      ];
-      this.data.updateInput(inputIndex, { partialSig });
-    });
+    const signature = await keyPair.sign(hash);
+    const partialSig = [
+      {
+        pubkey: keyPair.publicKey,
+        signature: bscript.signature.encode(signature, sighashType),
+      },
+    ];
+    this.hasInputsWithPartialSig = true;
+    this.data.updateInput(inputIndex, { partialSig });
   }
   async _signTaprootInputAsync(
     inputIndex,
@@ -811,6 +839,7 @@ export class Psbt {
       const tapKeySigPromise = Promise.resolve(
         keyPair.signSchnorr(tapKeyHash.hash),
       ).then(sig => {
+        this.hasInputsWithPartialSig = true;
         return { tapKeySig: serializeTaprootSignature(sig, input.sighashType) };
       });
       signaturePromises.push(tapKeySigPromise);
@@ -830,6 +859,7 @@ export class Psbt {
                 leafHash: tsh.leafHash,
               },
             ];
+            this.hasInputsWithPartialSig = true;
             return { tapScriptSig };
           },
         );
@@ -1048,15 +1078,6 @@ function checkFees(psbt, cache, opts) {
         `pass true to the first arg of extractTransaction.`,
     );
   }
-}
-function checkInputsForPartialSig(inputs, action) {
-  inputs.forEach(input => {
-    const throws = isTaprootInput(input)
-      ? checkTaprootInputForSigs(input, action)
-      : checkInputForSig(input, action);
-    if (throws)
-      throw new Error('Can not modify transaction, signatures exist.');
-  });
 }
 function checkPartialSigSighashes(input) {
   if (!input.sighashType || !input.partialSig) return;
