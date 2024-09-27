@@ -292,7 +292,6 @@ export class Psbt {
         checkPartialSigs: boolean = true,
     ): this {
         if (
-            arguments.length > 1 ||
             !inputData ||
             inputData.hash === undefined ||
             inputData.index === undefined
@@ -304,6 +303,7 @@ export class Psbt {
         }
 
         checkTaprootInputFields(inputData, inputData, 'addInput');
+
         if (checkPartialSigs) {
             checkInputsForPartialSig(this.data.inputs, 'addInput');
         }
