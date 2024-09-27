@@ -277,12 +277,20 @@ export class Psbt {
         return this;
     }
 
-    addInputs(inputDatas: PsbtInputExtended[]): this {
-        inputDatas.forEach(inputData => this.addInput(inputData));
+    addInputs(
+        inputDatas: PsbtInputExtended[],
+        checkPartialSigs: boolean = true,
+    ): this {
+        inputDatas.forEach(inputData =>
+            this.addInput(inputData, checkPartialSigs),
+        );
         return this;
     }
 
-    addInput(inputData: PsbtInputExtended): this {
+    addInput(
+        inputData: PsbtInputExtended,
+        checkPartialSigs: boolean = true,
+    ): this {
         if (
             arguments.length > 1 ||
             !inputData ||
@@ -296,7 +304,9 @@ export class Psbt {
         }
 
         checkTaprootInputFields(inputData, inputData, 'addInput');
-        checkInputsForPartialSig(this.data.inputs, 'addInput');
+        if (checkPartialSigs) {
+            checkInputsForPartialSig(this.data.inputs, 'addInput');
+        }
 
         if (inputData.witnessScript) checkInvalidP2WSH(inputData.witnessScript);
         const c = this.__CACHE;
