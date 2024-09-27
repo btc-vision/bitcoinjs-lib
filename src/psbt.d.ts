@@ -83,8 +83,8 @@ export declare class Psbt {
     setVersion(version: number): this;
     setLocktime(locktime: number): this;
     setInputSequence(inputIndex: number, sequence: number): this;
-    addInputs(inputDatas: PsbtInputExtended[]): this;
-    addInput(inputData: PsbtInputExtended): this;
+    addInputs(inputDatas: PsbtInputExtended[], checkPartialSigs?: boolean): this;
+    addInput(inputData: PsbtInputExtended, checkPartialSigs?: boolean): this;
     addOutputs(outputDatas: PsbtOutputExtended[]): this;
     addOutput(outputData: PsbtOutputExtended): this;
     extractTransaction(disableFeeCheck?: boolean, disableOutputChecks?: boolean): Transaction;

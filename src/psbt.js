@@ -186,11 +186,13 @@ class Psbt {
         c.__EXTRACTED_TX = undefined;
         return this;
     }
-    addInputs(inputDatas) {
-        inputDatas.forEach(inputData => this.addInput(inputData));
+    addInputs(inputDatas, checkPartialSigs = true) {
+        inputDatas.forEach(inputData =>
+            this.addInput(inputData, checkPartialSigs),
+        );
         return this;
     }
-    addInput(inputData) {
+    addInput(inputData, checkPartialSigs = true) {
         if (
             arguments.length > 1 ||
             !inputData ||
@@ -203,7 +205,9 @@ class Psbt {
             );
         }
         (0, bip371_1.checkTaprootInputFields)(inputData, inputData, 'addInput');
-        checkInputsForPartialSig(this.data.inputs, 'addInput');
+        if (checkPartialSigs) {
+            checkInputsForPartialSig(this.data.inputs, 'addInput');
+        }
         if (inputData.witnessScript) checkInvalidP2WSH(inputData.witnessScript);
         const c = this.__CACHE;
         this.data.addInput(inputData);
