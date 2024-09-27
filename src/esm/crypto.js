@@ -13,7 +13,9 @@ export function hash160(buffer) {
 export function hash256(buffer) {
   return _sha256(_sha256(buffer));
 }
-export const sha256 = _sha256;
+export function sha256(buf) {
+  return _sha256(buf);
+}
 export const TAGS = [
   'BIP0340/challenge',
   'BIP0340/aux',

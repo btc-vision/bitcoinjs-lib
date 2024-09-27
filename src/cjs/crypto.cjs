@@ -44,9 +44,10 @@ var __importStar =
     return result;
   };
 Object.defineProperty(exports, '__esModule', { value: true });
-exports.TAGGED_HASH_PREFIXES = exports.TAGS = exports.sha256 = void 0;
+exports.TAGGED_HASH_PREFIXES = exports.TAGS = void 0;
 exports.hash160 = hash160;
 exports.hash256 = hash256;
+exports.sha256 = sha256;
 exports.taggedHash = taggedHash;
 /**
  * A module for hashing functions.
@@ -63,7 +64,9 @@ function hash160(buffer) {
 function hash256(buffer) {
   return (0, sha256_1.sha256)((0, sha256_1.sha256)(buffer));
 }
-exports.sha256 = sha256_1.sha256;
+function sha256(buf) {
+  return (0, sha256_1.sha256)(buf);
+}
 exports.TAGS = [
   'BIP0340/challenge',
   'BIP0340/aux',
@@ -136,7 +139,5 @@ exports.TAGGED_HASH_PREFIXES = {
   ]),
 };
 function taggedHash(prefix, data) {
-  return (0, exports.sha256)(
-    tools.concat([exports.TAGGED_HASH_PREFIXES[prefix], data]),
-  );
+  return sha256(tools.concat([exports.TAGGED_HASH_PREFIXES[prefix], data]));
 }
