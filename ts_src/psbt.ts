@@ -387,7 +387,7 @@ export class Psbt {
       'fee',
       this.data.inputs,
       this.__CACHE,
-      disableOutputChecks
+      disableOutputChecks,
     )! as bigint;
   }
 
