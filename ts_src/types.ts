@@ -4,8 +4,8 @@ export const typeforce = require('typeforce');
 
 const ZERO32 = NBuffer.alloc(32, 0);
 const EC_P = NBuffer.from(
-  'fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f',
-  'hex',
+    'fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f',
+    'hex',
 );
 
 /**
@@ -15,11 +15,11 @@ const EC_P = NBuffer.from(
  * @returns True if the arrays are equal, false otherwise.
  */
 export function stacksEqual(a: Buffer[], b: Buffer[]): boolean {
-  if (a.length !== b.length) return false;
+    if (a.length !== b.length) return false;
 
-  return a.every((x, i) => {
-    return x.equals(b[i]);
-  });
+    return a.every((x, i) => {
+        return x.equals(b[i]);
+    });
 }
 
 /**
@@ -28,48 +28,48 @@ export function stacksEqual(a: Buffer[], b: Buffer[]): boolean {
  * @returns True if the value is a valid elliptic curve point, false otherwise.
  */
 export function isPoint(p: Buffer | number | undefined | null): boolean {
-  if (!NBuffer.isBuffer(p)) return false;
-  if (p.length < 33) return false;
+    if (!NBuffer.isBuffer(p)) return false;
+    if (p.length < 33) return false;
 
-  const t = p[0];
-  const x = p.slice(1, 33);
-  if (x.compare(ZERO32) === 0) return false;
-  if (x.compare(EC_P) >= 0) return false;
-  if ((t === 0x02 || t === 0x03) && p.length === 33) {
-    return true;
-  }
+    const t = p[0];
+    const x = p.slice(1, 33);
+    if (x.compare(ZERO32) === 0) return false;
+    if (x.compare(EC_P) >= 0) return false;
+    if ((t === 0x02 || t === 0x03) && p.length === 33) {
+        return true;
+    }
 
-  const y = p.slice(33);
-  if (y.compare(ZERO32) === 0) return false;
-  if (y.compare(EC_P) >= 0) return false;
-  if (t === 0x04 && p.length === 65) return true;
-  return false;
+    const y = p.slice(33);
+    if (y.compare(ZERO32) === 0) return false;
+    if (y.compare(EC_P) >= 0) return false;
+    if (t === 0x04 && p.length === 65) return true;
+    return false;
 }
 
 const SATOSHI_MAX: number = 21 * 1e14;
 
 export function Satoshi(value: number): boolean {
-  return typeforce.UInt53(value) && value <= SATOSHI_MAX;
+    return typeforce.UInt53(value) && value <= SATOSHI_MAX;
 }
 
 export interface XOnlyPointAddTweakResult {
-  parity: 1 | 0;
-  xOnlyPubkey: Uint8Array;
+    parity: 1 | 0;
+    xOnlyPubkey: Uint8Array;
 }
 
 export interface Tapleaf {
-  output: Buffer;
-  version?: number;
+    output: Buffer;
+    version?: number;
 }
 
 export const TAPLEAF_VERSION_MASK = 0xfe;
 
 export function isTapleaf(o: any): o is Tapleaf {
-  if (!o || !('output' in o)) return false;
-  if (!NBuffer.isBuffer(o.output)) return false;
-  if (o.version !== undefined)
-    return (o.version & TAPLEAF_VERSION_MASK) === o.version;
-  return true;
+    if (!o || !('output' in o)) return false;
+    if (!NBuffer.isBuffer(o.output)) return false;
+    if (o.version !== undefined)
+        return (o.version & TAPLEAF_VERSION_MASK) === o.version;
+    return true;
 }
 
 /**
@@ -80,18 +80,18 @@ export function isTapleaf(o: any): o is Tapleaf {
 export type Taptree = [Taptree | Tapleaf, Taptree | Tapleaf] | Tapleaf;
 
 export function isTaptree(scriptTree: any): scriptTree is Taptree {
-  if (!Array(scriptTree)) return isTapleaf(scriptTree);
-  if (scriptTree.length !== 2) return false;
-  return scriptTree.every((t: any) => isTaptree(t));
+    if (!Array(scriptTree)) return isTapleaf(scriptTree);
+    if (scriptTree.length !== 2) return false;
+    return scriptTree.every((t: any) => isTaptree(t));
 }
 
 export interface TinySecp256k1Interface {
-  isXOnlyPoint(p: Uint8Array): boolean;
+    isXOnlyPoint(p: Uint8Array): boolean;
 
-  xOnlyPointAddTweak(
-    p: Uint8Array,
-    tweak: Uint8Array,
-  ): XOnlyPointAddTweakResult | null;
+    xOnlyPointAddTweak(
+        p: Uint8Array,
+        tweak: Uint8Array,
+    ): XOnlyPointAddTweakResult | null;
 }
 
 export const Buffer256bit = typeforce.BufferN(32);

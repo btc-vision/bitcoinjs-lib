@@ -17,24 +17,24 @@ import { p2wsh } from './p2wsh';
 import { p2tr } from './p2tr';
 
 export interface Payment {
-  name?: string;
-  network?: Network;
-  output?: Buffer;
-  data?: Buffer[];
-  m?: number;
-  n?: number;
-  pubkeys?: Buffer[];
-  input?: Buffer;
-  signatures?: Buffer[];
-  internalPubkey?: Buffer;
-  pubkey?: Buffer;
-  signature?: Buffer;
-  address?: string;
-  hash?: Buffer;
-  redeem?: Payment;
-  redeemVersion?: number;
-  scriptTree?: Taptree;
-  witness?: Buffer[];
+    name?: string;
+    network?: Network;
+    output?: Buffer;
+    data?: Buffer[];
+    m?: number;
+    n?: number;
+    pubkeys?: Buffer[];
+    input?: Buffer;
+    signatures?: Buffer[];
+    internalPubkey?: Buffer;
+    pubkey?: Buffer;
+    signature?: Buffer;
+    address?: string;
+    hash?: Buffer;
+    redeem?: Payment;
+    redeemVersion?: number;
+    scriptTree?: Taptree;
+    witness?: Buffer[];
 }
 
 export type PaymentCreator = (a: Payment, opts?: PaymentOpts) => Payment;
@@ -42,8 +42,8 @@ export type PaymentCreator = (a: Payment, opts?: PaymentOpts) => Payment;
 export type PaymentFunction = () => Payment;
 
 export interface PaymentOpts {
-  validate?: boolean;
-  allowIncomplete?: boolean;
+    validate?: boolean;
+    allowIncomplete?: boolean;
 }
 
 export type StackElement = Buffer | number;

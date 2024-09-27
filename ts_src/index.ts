@@ -10,13 +10,13 @@ export { Block } from './block';
 /** @hidden */
 export { TaggedHashPrefix } from './crypto';
 export {
-  Psbt,
-  PsbtTxInput,
-  PsbtTxOutput,
-  Signer,
-  SignerAsync,
-  HDSigner,
-  HDSignerAsync,
+    Psbt,
+    PsbtTxInput,
+    PsbtTxOutput,
+    Signer,
+    SignerAsync,
+    HDSigner,
+    HDSignerAsync,
 } from './psbt';
 /** @hidden */
 export { OPS as opcodes } from './ops';
@@ -25,11 +25,11 @@ export { Transaction } from './transaction';
 export { Network } from './networks';
 /** @hidden */
 export {
-  Payment,
-  PaymentCreator,
-  PaymentOpts,
-  Stack,
-  StackElement,
+    Payment,
+    PaymentCreator,
+    PaymentOpts,
+    Stack,
+    StackElement,
 } from './payments';
 export { Input as TxInput, Output as TxOutput } from './transaction';
 export { initEccLib } from './ecc_lib';
