@@ -129,6 +129,7 @@ class Psbt {
   }
   __CACHE;
   opts;
+  hasInputsWithPartialSig = false;
   constructor(opts = {}, data = new bip174_1.Psbt(new PsbtTransaction())) {
     this.data = data;
     // set defaults
@@ -202,8 +203,10 @@ class Psbt {
   }
   clone() {
     // TODO: more efficient cloning
-    const res = Psbt.fromBuffer(this.data.toBuffer());
-    res.opts = JSON.parse(JSON.stringify(this.opts));
+    const res = Psbt.fromBuffer(
+      this.data.toBuffer(),
+      JSON.parse(JSON.stringify(this.opts)),
+    );
     return res;
   }
   setMaximumFeeRate(satoshiPerByte) {
@@ -212,7 +215,7 @@ class Psbt {
   }
   setVersion(version) {
     check32Bit(version);
-    checkInputsForPartialSig(this.data.inputs, 'setVersion');
+    this.checkInputsForPartialSig('setVersion');
     const c = this.__CACHE;
     c.__TX.version = version;
     c.__EXTRACTED_TX = undefined;
@@ -220,7 +223,7 @@ class Psbt {
   }
   setLocktime(locktime) {
     check32Bit(locktime);
-    checkInputsForPartialSig(this.data.inputs, 'setLocktime');
+    this.checkInputsForPartialSig('setLocktime');
     const c = this.__CACHE;
     c.__TX.locktime = locktime;
     c.__EXTRACTED_TX = undefined;
@@ -228,7 +231,7 @@ class Psbt {
   }
   setInputSequence(inputIndex, sequence) {
     check32Bit(sequence);
-    checkInputsForPartialSig(this.data.inputs, 'setInputSequence');
+    this.checkInputsForPartialSig('setInputSequence');
     const c = this.__CACHE;
     if (c.__TX.ins.length <= inputIndex) {
       throw new Error('Input index too high');
@@ -240,6 +243,18 @@ class Psbt {
   addInputs(inputDatas) {
     inputDatas.forEach(inputData => this.addInput(inputData));
     return this;
+  }
+  checkInputsForPartialSig(action) {
+    if (!this.hasInputsWithPartialSig) {
+      //
+    }
+    for (const input of this.data.inputs) {
+      const throws = (0, bip371_js_1.isTaprootInput)(input)
+        ? (0, bip371_js_1.checkTaprootInputForSigs)(input, action)
+        : (0, psbtutils_js_1.checkInputForSig)(input, action);
+      if (throws)
+        throw new Error('Can not modify transaction, signatures exist.');
+    }
   }
   addInput(inputData) {
     if (
@@ -253,18 +268,30 @@ class Psbt {
           `Requires single object with at least [hash] and [index]`,
       );
     }
+    let s = Date.now();
     (0, bip371_js_1.checkTaprootInputFields)(inputData, inputData, 'addInput');
-    checkInputsForPartialSig(this.data.inputs, 'addInput');
+    console.log(`Took ${Date.now() - s}ms to checkTaprootInputFields`);
+    s = Date.now();
+    this.checkInputsForPartialSig('addInput');
+    console.log(`Took ${Date.now() - s}ms to checkInputsForPartialSig`);
+    s = Date.now();
     if (inputData.witnessScript) checkInvalidP2WSH(inputData.witnessScript);
+    console.log(`Took ${Date.now() - s}ms to checkInvalidP2WSH`);
     const c = this.__CACHE;
+    s = Date.now();
     this.data.addInput(inputData);
+    console.log(`Took ${Date.now() - s}ms to addInput`);
+    s = Date.now();
     const txIn = c.__TX.ins[c.__TX.ins.length - 1];
     checkTxInputCache(c, txIn);
+    console.log(`Took ${Date.now() - s}ms to checkTxInputCache`);
     const inputIndex = this.data.inputs.length - 1;
     const input = this.data.inputs[inputIndex];
+    s = Date.now();
     if (input.nonWitnessUtxo) {
       addNonWitnessTxCache(this.__CACHE, input, inputIndex);
     }
+    console.log(`Took ${Date.now() - s}ms to addNonWitnessTxCache`);
     c.__FEE = undefined;
     c.__FEE_RATE = undefined;
     c.__EXTRACTED_TX = undefined;
@@ -286,7 +313,7 @@ class Psbt {
           `Requires single object with at least [script or address] and [value]`,
       );
     }
-    checkInputsForPartialSig(this.data.inputs, 'addOutput');
+    this.checkInputsForPartialSig('addOutput');
     const { address } = outputData;
     if (typeof address === 'string') {
       const { network } = this.opts;
@@ -305,7 +332,10 @@ class Psbt {
     c.__EXTRACTED_TX = undefined;
     return this;
   }
-  extractTransaction(disableFeeCheck) {
+  extractTransaction(disableFeeCheck, disableOutputChecks) {
+    if (disableOutputChecks) {
+      this.data.inputs = this.data.inputs.filter(i => !i.partialSig);
+    }
     if (!this.data.inputs.every(isFinalized)) throw new Error('Not finalized');
     const c = this.__CACHE;
     if (!disableFeeCheck) {
@@ -313,19 +343,26 @@ class Psbt {
     }
     if (c.__EXTRACTED_TX) return c.__EXTRACTED_TX;
     const tx = c.__TX.clone();
-    inputFinalizeGetAmts(this.data.inputs, tx, c, true);
+    inputFinalizeGetAmts(this.data.inputs, tx, c, true, disableOutputChecks);
     return tx;
   }
-  getFeeRate() {
+  getFeeRate(disableOutputChecks = false) {
     return getTxCacheValue(
       '__FEE_RATE',
       'fee rate',
       this.data.inputs,
       this.__CACHE,
+      disableOutputChecks,
     );
   }
-  getFee() {
-    return getTxCacheValue('__FEE', 'fee', this.data.inputs, this.__CACHE);
+  getFee(disableOutputChecks = false) {
+    return getTxCacheValue(
+      '__FEE',
+      'fee',
+      this.data.inputs,
+      this.__CACHE,
+      disableOutputChecks,
+    );
   }
   finalizeAllInputs() {
     (0, bip174_2.checkForInput)(this.data.inputs, 0); // making sure we have at least one
@@ -732,6 +769,7 @@ class Psbt {
         signature: bscript.signature.encode(keyPair.sign(hash), sighashType),
       },
     ];
+    this.hasInputsWithPartialSig = true;
     this.data.updateInput(inputIndex, { partialSig });
     return this;
   }
@@ -769,9 +807,11 @@ class Psbt {
       }));
     if (tapKeySig) {
       this.data.updateInput(inputIndex, { tapKeySig });
+      this.hasInputsWithPartialSig = true;
     }
     if (tapScriptSig.length) {
       this.data.updateInput(inputIndex, { tapScriptSig });
+      this.hasInputsWithPartialSig = true;
     }
     return this;
   }
@@ -807,7 +847,7 @@ class Psbt {
       throw new Error(`Input #${inputIndex} is not of type Taproot.`);
     });
   }
-  _signInputAsync(
+  async _signInputAsync(
     inputIndex,
     keyPair,
     sighashTypes = [transaction_js_1.Transaction.SIGHASH_ALL],
@@ -819,15 +859,15 @@ class Psbt {
       this.__CACHE,
       sighashTypes,
     );
-    return Promise.resolve(keyPair.sign(hash)).then(signature => {
-      const partialSig = [
-        {
-          pubkey: keyPair.publicKey,
-          signature: bscript.signature.encode(signature, sighashType),
-        },
-      ];
-      this.data.updateInput(inputIndex, { partialSig });
-    });
+    const signature = await keyPair.sign(hash);
+    const partialSig = [
+      {
+        pubkey: keyPair.publicKey,
+        signature: bscript.signature.encode(signature, sighashType),
+      },
+    ];
+    this.hasInputsWithPartialSig = true;
+    this.data.updateInput(inputIndex, { partialSig });
   }
   async _signTaprootInputAsync(
     inputIndex,
@@ -849,6 +889,7 @@ class Psbt {
       const tapKeySigPromise = Promise.resolve(
         keyPair.signSchnorr(tapKeyHash.hash),
       ).then(sig => {
+        this.hasInputsWithPartialSig = true;
         return {
           tapKeySig: (0, bip371_js_1.serializeTaprootSignature)(
             sig,
@@ -873,6 +914,7 @@ class Psbt {
                 leafHash: tsh.leafHash,
               },
             ];
+            this.hasInputsWithPartialSig = true;
             return { tapScriptSig };
           },
         );
@@ -1097,15 +1139,6 @@ function checkFees(psbt, cache, opts) {
     );
   }
 }
-function checkInputsForPartialSig(inputs, action) {
-  inputs.forEach(input => {
-    const throws = (0, bip371_js_1.isTaprootInput)(input)
-      ? (0, bip371_js_1.checkTaprootInputForSigs)(input, action)
-      : (0, psbtutils_js_1.checkInputForSig)(input, action);
-    if (throws)
-      throw new Error('Can not modify transaction, signatures exist.');
-  });
-}
 function checkPartialSigSighashes(input) {
   if (!input.sighashType || !input.partialSig) return;
   const { partialSig, sighashType } = input;
@@ -1167,7 +1200,7 @@ const checkWitnessScript = scriptCheckerFactory(
   payments.p2wsh,
   'Witness script',
 );
-function getTxCacheValue(key, name, inputs, c) {
+function getTxCacheValue(key, name, inputs, c, disableOutputChecks = false) {
   if (!inputs.every(isFinalized))
     throw new Error(`PSBT must be finalized to calculate ${name}`);
   if (key === '__FEE_RATE' && c.__FEE_RATE) return c.__FEE_RATE;
@@ -1180,7 +1213,7 @@ function getTxCacheValue(key, name, inputs, c) {
   } else {
     tx = c.__TX.clone();
   }
-  inputFinalizeGetAmts(inputs, tx, c, mustFinalize);
+  inputFinalizeGetAmts(inputs, tx, c, mustFinalize, disableOutputChecks);
   if (key === '__FEE_RATE') return c.__FEE_RATE;
   else if (key === '__FEE') return c.__FEE;
 }
@@ -1614,7 +1647,13 @@ function addNonWitnessTxCache(cache, input, inputIndex) {
     },
   });
 }
-function inputFinalizeGetAmts(inputs, tx, cache, mustFinalize) {
+function inputFinalizeGetAmts(
+  inputs,
+  tx,
+  cache,
+  mustFinalize,
+  disableOutputChecks,
+) {
   let inputAmount = 0n;
   inputs.forEach((input, idx) => {
     if (mustFinalize && input.finalScriptSig)
@@ -1635,8 +1674,10 @@ function inputFinalizeGetAmts(inputs, tx, cache, mustFinalize) {
   });
   const outputAmount = tx.outs.reduce((total, o) => total + o.value, 0n);
   const fee = inputAmount - outputAmount;
-  if (fee < 0) {
-    throw new Error('Outputs are spending more than Inputs');
+  if (!disableOutputChecks) {
+    if (fee < 0) {
+      throw new Error('Outputs are spending more than Inputs');
+    }
   }
   const bytes = tx.virtualSize();
   cache.__FEE = fee;

@@ -18,6 +18,9 @@ export interface PsbtTxOutput extends TransactionOutput {
     address: string | undefined;
 }
 export type ValidateSigFunction = (pubkey: Uint8Array, msghash: Uint8Array, signature: Uint8Array) => boolean;
+export interface PsbtBaseExtended extends Omit<PsbtBase, 'inputs'> {
+    inputs: PsbtInput[];
+}
 /**
  * Psbt class can parse and generate a PSBT binary based off of the BIP174.
  * There are 6 roles that this class fulfills. (Explained in BIP174)
@@ -56,13 +59,14 @@ export type ValidateSigFunction = (pubkey: Uint8Array, msghash: Uint8Array, sign
  *   Transaction object. Such as fee rate not being larger than maximumFeeRate etc.
  */
 export declare class Psbt {
-    readonly data: PsbtBase;
+    data: PsbtBaseExtended;
     static fromBase64(data: string, opts?: PsbtOptsOptional): Psbt;
     static fromHex(data: string, opts?: PsbtOptsOptional): Psbt;
     static fromBuffer(buffer: Uint8Array, opts?: PsbtOptsOptional): Psbt;
-    private __CACHE;
-    private opts;
-    constructor(opts?: PsbtOptsOptional, data?: PsbtBase);
+    private readonly __CACHE;
+    private readonly opts;
+    private hasInputsWithPartialSig;
+    constructor(opts?: PsbtOptsOptional, data?: PsbtBaseExtended);
     get inputCount(): number;
     get version(): number;
     set version(version: number);
@@ -77,12 +81,13 @@ export declare class Psbt {
     setLocktime(locktime: number): this;
     setInputSequence(inputIndex: number, sequence: number): this;
     addInputs(inputDatas: PsbtInputExtended[]): this;
+    private checkInputsForPartialSig;
     addInput(inputData: PsbtInputExtended): this;
     addOutputs(outputDatas: PsbtOutputExtended[]): this;
     addOutput(outputData: PsbtOutputExtended): this;
-    extractTransaction(disableFeeCheck?: boolean): Transaction;
-    getFeeRate(): number;
-    getFee(): bigint;
+    extractTransaction(disableFeeCheck?: boolean, disableOutputChecks?: boolean): Transaction;
+    getFeeRate(disableOutputChecks?: boolean): number;
+    getFee(disableOutputChecks?: boolean): bigint;
     finalizeAllInputs(): this;
     finalizeInput(inputIndex: number, finalScriptsFunc?: FinalScriptsFunc | FinalTaprootScriptsFunc): this;
     finalizeTaprootInput(inputIndex: number, tapLeafHashToFinalize?: Uint8Array, finalScriptsFunc?: FinalTaprootScriptsFunc): this;

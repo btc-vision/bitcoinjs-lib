@@ -161,7 +161,9 @@ export function fromASM(asm) {
   return compile(
     asm.split(' ').map(chunkStr => {
       // opcode?
-      if (OPS[chunkStr] !== undefined) return OPS[chunkStr];
+      if (OPS[chunkStr] !== undefined) {
+        return OPS[chunkStr];
+      }
       v.parse(types.HexSchema, chunkStr);
       // data!
       return tools.fromHex(chunkStr);
