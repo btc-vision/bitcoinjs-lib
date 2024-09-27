@@ -1,6 +1,7 @@
 'use strict';
 Object.defineProperty(exports, '__esModule', { value: true });
-exports.signatureBlocksAction =
+exports.getPsigsFromInputFinalScripts =
+    exports.signatureBlocksAction =
     exports.checkInputForSig =
     exports.pubkeyInScript =
     exports.pubkeyPositionInScript =
@@ -187,3 +188,4 @@ function getPsigsFromInputFinalScripts(input) {
         })
         .map(sig => ({ signature: sig }));
 }
+exports.getPsigsFromInputFinalScripts = getPsigsFromInputFinalScripts;

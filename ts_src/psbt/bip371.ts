@@ -240,7 +240,7 @@ function extractTaprootSigs(input: PsbtInput): Buffer[] {
     return sigs;
 }
 
-function getTapKeySigFromWithness(
+export function getTapKeySigFromWithness(
     finalScriptWitness?: Buffer,
 ): Buffer | undefined {
     if (!finalScriptWitness) return;

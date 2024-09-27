@@ -1,5 +1,5 @@
 /// <reference types="node" />
-import { PsbtInput } from 'bip174/src/lib/interfaces';
+import { PartialSig, PsbtInput } from 'bip174/src/lib/interfaces';
 export declare const isP2MS: (script: Buffer) => boolean;
 export declare const isP2PK: (script: Buffer) => boolean;
 export declare const isP2PKH: (script: Buffer) => boolean;
@@ -52,4 +52,13 @@ type SignatureDecodeFunc = (buffer: Buffer) => {
  * @returns True if the action is allowed, false otherwise.
  */
 export declare function signatureBlocksAction(signature: Buffer, signatureDecodeFn: SignatureDecodeFunc, action: string): boolean;
+/**
+ * Retrieves the partial signatures (Psigs) from the input's final scripts.
+ * Psigs are extracted from both the final scriptSig and final scriptWitness of the input.
+ * Only canonical script signatures are considered.
+ *
+ * @param input - The PsbtInput object representing the input.
+ * @returns An array of PartialSig objects containing the extracted Psigs.
+ */
+export declare function getPsigsFromInputFinalScripts(input: PsbtInput): PartialSig[];
 export {};

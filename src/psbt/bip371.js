@@ -1,6 +1,7 @@
 'use strict';
 Object.defineProperty(exports, '__esModule', { value: true });
-exports.checkTaprootInputForSigs =
+exports.getTapKeySigFromWithness =
+    exports.checkTaprootInputForSigs =
     exports.tapTreeFromList =
     exports.tapTreeToList =
     exports.tweakInternalPubKey =
@@ -204,6 +205,7 @@ function getTapKeySigFromWithness(finalScriptWitness) {
     // todo: add schnorr signature validation
     if (witness.length === 64 || witness.length === 65) return witness;
 }
+exports.getTapKeySigFromWithness = getTapKeySigFromWithness;
 function _tapTreeToList(tree, leaves = [], depth = 0) {
     if (depth > bip341_1.MAX_TAPTREE_DEPTH)
         throw new Error('Max taptree depth exceeded.');

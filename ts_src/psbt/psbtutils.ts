@@ -177,7 +177,7 @@ function extractPartialSigs(input: PsbtInput): Buffer[] {
  * @param input - The PsbtInput object representing the input.
  * @returns An array of PartialSig objects containing the extracted Psigs.
  */
-function getPsigsFromInputFinalScripts(input: PsbtInput): PartialSig[] {
+export function getPsigsFromInputFinalScripts(input: PsbtInput): PartialSig[] {
     const scriptItems = !input.finalScriptSig
         ? []
         : bscript.decompile(input.finalScriptSig) || [];
