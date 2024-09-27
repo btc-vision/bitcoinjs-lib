@@ -1,10 +1,8 @@
-import { bitcoin as BITCOIN_NETWORK } from '../networks.js';
-import * as bscript from '../script.js';
-import { BufferSchema, isPoint } from '../types.js';
-import { Payment, PaymentOpts, StackFunction } from './index.js';
-import * as lazy from './lazy.js';
-import * as tools from 'uint8array-tools';
-import * as v from 'valibot';
+import { bitcoin as BITCOIN_NETWORK } from '../networks';
+import * as bscript from '../script';
+import { isPoint, typeforce as typef } from '../types';
+import { Payment, PaymentOpts, StackFunction } from './index';
+import * as lazy from './lazy';
 const OPS = bscript.OPS;
 
 // input: {signature}
@@ -22,23 +20,15 @@ export function p2pk(a: Payment, opts?: PaymentOpts): Payment {
     throw new TypeError('Not enough data');
   opts = Object.assign({ validate: true }, opts || {});
 
-  v.parse(
-    v.partial(
-      v.object({
-        network: v.object({}),
-        output: BufferSchema,
-        pubkey: v.custom(
-          isPoint as (input: unknown) => boolean,
-          'invalid pubkey',
-        ),
+  typef(
+    {
+      network: typef.maybe(typef.Object),
+      output: typef.maybe(typef.Buffer),
+      pubkey: typef.maybe(isPoint),
 
-        signature: v.custom(
-          bscript.isCanonicalScriptSignature as (input: unknown) => boolean,
-          'Expected signature to be of type isCanonicalScriptSignature',
-        ),
-        input: BufferSchema,
-      }),
-    ),
+      signature: typef.maybe(bscript.isCanonicalScriptSignature),
+      input: typef.maybe(typef.Buffer),
+    },
     a,
   );
 
@@ -59,7 +49,7 @@ export function p2pk(a: Payment, opts?: PaymentOpts): Payment {
   });
   lazy.prop(o, 'signature', () => {
     if (!a.input) return;
-    return _chunks()[0] as Uint8Array;
+    return _chunks()[0] as Buffer;
   });
   lazy.prop(o, 'input', () => {
     if (!a.signature) return;
@@ -76,12 +66,12 @@ export function p2pk(a: Payment, opts?: PaymentOpts): Payment {
       if (a.output[a.output.length - 1] !== OPS.OP_CHECKSIG)
         throw new TypeError('Output is invalid');
       if (!isPoint(o.pubkey)) throw new TypeError('Output pubkey is invalid');
-      if (a.pubkey && tools.compare(a.pubkey, o.pubkey!) !== 0)
+      if (a.pubkey && !a.pubkey.equals(o.pubkey!))
         throw new TypeError('Pubkey mismatch');
     }
 
     if (a.signature) {
-      if (a.input && tools.compare(a.input, o.input!) !== 0)
+      if (a.input && !a.input.equals(o.input!))
         throw new TypeError('Signature mismatch');
     }
 

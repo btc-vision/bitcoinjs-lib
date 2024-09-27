@@ -1,5 +1,3 @@
-import * as tools from 'uint8array-tools';
-
 /**
  * Calculates the Merkle root of an array of buffers using a specified digest function.
  *
@@ -9,9 +7,9 @@ import * as tools from 'uint8array-tools';
  * @throws {TypeError} If the values parameter is not an array or the digestFn parameter is not a function.
  */
 export function fastMerkleRoot(
-  values: Uint8Array[],
-  digestFn: (b: Uint8Array) => Uint8Array,
-): Uint8Array {
+  values: Buffer[],
+  digestFn: (b: Buffer) => Buffer,
+): Buffer {
   if (!Array.isArray(values)) throw TypeError('Expected values Array');
   if (typeof digestFn !== 'function')
     throw TypeError('Expected digest Function');
@@ -25,7 +23,7 @@ export function fastMerkleRoot(
     for (let i = 0; i < length; i += 2, ++j) {
       const left = results[i];
       const right = i + 1 === length ? left : results[i + 1];
-      const data = tools.concat([left, right]);
+      const data = Buffer.concat([left, right]);
 
       results[j] = digestFn(data);
     }

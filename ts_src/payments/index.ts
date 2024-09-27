@@ -5,36 +5,36 @@
  *
  * @packageDocumentation
  */
-import { Network } from '../networks.js';
-import { Taptree } from '../types.js';
-import { p2data as embed } from './embed.js';
-import { p2ms } from './p2ms.js';
-import { p2pk } from './p2pk.js';
-import { p2pkh } from './p2pkh.js';
-import { p2sh } from './p2sh.js';
-import { p2wpkh } from './p2wpkh.js';
-import { p2wsh } from './p2wsh.js';
-import { p2tr } from './p2tr.js';
+import { Network } from '../networks';
+import { Taptree } from '../types';
+import { p2data as embed } from './embed';
+import { p2ms } from './p2ms';
+import { p2pk } from './p2pk';
+import { p2pkh } from './p2pkh';
+import { p2sh } from './p2sh';
+import { p2wpkh } from './p2wpkh';
+import { p2wsh } from './p2wsh';
+import { p2tr } from './p2tr';
 
 export interface Payment {
   name?: string;
   network?: Network;
-  output?: Uint8Array;
-  data?: Uint8Array[];
+  output?: Buffer;
+  data?: Buffer[];
   m?: number;
   n?: number;
-  pubkeys?: Uint8Array[];
-  input?: Uint8Array;
-  signatures?: Uint8Array[];
-  internalPubkey?: Uint8Array;
-  pubkey?: Uint8Array;
-  signature?: Uint8Array;
+  pubkeys?: Buffer[];
+  input?: Buffer;
+  signatures?: Buffer[];
+  internalPubkey?: Buffer;
+  pubkey?: Buffer;
+  signature?: Buffer;
   address?: string;
-  hash?: Uint8Array;
+  hash?: Buffer;
   redeem?: Payment;
   redeemVersion?: number;
   scriptTree?: Taptree;
-  witness?: Uint8Array[];
+  witness?: Buffer[];
 }
 
 export type PaymentCreator = (a: Payment, opts?: PaymentOpts) => Payment;
@@ -46,7 +46,7 @@ export interface PaymentOpts {
   allowIncomplete?: boolean;
 }
 
-export type StackElement = Uint8Array | number;
+export type StackElement = Buffer | number;
 export type Stack = StackElement[];
 export type StackFunction = () => Stack;
 

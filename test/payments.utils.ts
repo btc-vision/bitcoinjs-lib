@@ -1,25 +1,23 @@
 import * as t from 'assert';
-import * as BNETWORKS from 'bitcoinjs-lib/src/networks';
-import * as bscript from 'bitcoinjs-lib/src/script';
-import * as tools from 'uint8array-tools';
-import { isTaptree } from 'bitcoinjs-lib/src/types';
+import * as BNETWORKS from '../src/networks';
+import * as bscript from '../src/script';
 
-function tryHex(x: Uint8Array | Uint8Array[]): string | string[] {
-  if (x instanceof Uint8Array) return tools.toHex(x);
+function tryHex(x: Buffer | Buffer[]): string | string[] {
+  if (Buffer.isBuffer(x)) return x.toString('hex');
   if (Array.isArray(x)) return x.map(tryHex) as string[];
   return x;
 }
 
-function fromHex(x: string | string[]): Uint8Array | Uint8Array[] {
-  if (typeof x === 'string') return tools.fromHex(x);
-  if (Array.isArray(x)) return x.map(fromHex) as Uint8Array[];
+function fromHex(x: string | string[]): Buffer | Buffer[] {
+  if (typeof x === 'string') return Buffer.from(x, 'hex');
+  if (Array.isArray(x)) return x.map(fromHex) as Buffer[];
   return x;
 }
-function tryASM(x: Uint8Array): string {
-  if (x instanceof Uint8Array) return bscript.toASM(x);
+function tryASM(x: Buffer): string {
+  if (Buffer.isBuffer(x)) return bscript.toASM(x);
   return x;
 }
-function asmToBuffer(x: string): Uint8Array {
+function asmToBuffer(x: string): Buffer {
   if (x === '') return Buffer.alloc(0);
   return bscript.fromASM(x);
 }

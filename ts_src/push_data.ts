@@ -1,5 +1,4 @@
-import { OPS } from './ops.js';
-import * as tools from 'uint8array-tools';
+import { OPS } from './ops';
 
 /**
  * Calculates the encoding length of a number used for push data in Bitcoin transactions.
@@ -20,29 +19,27 @@ export function encodingLength(i: number): number {
  * @param offset - The offset at which to start writing the encoded buffer.
  * @returns The size of the encoded buffer.
  */
-export function encode(
-  buffer: Uint8Array,
-  num: number,
-  offset: number,
-): number {
+export function encode(buffer: Buffer, num: number, offset: number): number {
   const size = encodingLength(num);
 
   // ~6 bit
   if (size === 1) {
-    tools.writeUInt8(buffer, offset, num);
+    buffer.writeUInt8(num, offset);
+
     // 8 bit
   } else if (size === 2) {
-    tools.writeUInt8(buffer, offset, OPS.OP_PUSHDATA1);
-    tools.writeUInt8(buffer, offset + 1, num);
+    buffer.writeUInt8(OPS.OP_PUSHDATA1, offset);
+    buffer.writeUInt8(num, offset + 1);
 
     // 16 bit
   } else if (size === 3) {
-    tools.writeUInt8(buffer, offset, OPS.OP_PUSHDATA2);
-    tools.writeUInt16(buffer, offset + 1, num, 'LE');
+    buffer.writeUInt8(OPS.OP_PUSHDATA2, offset);
+    buffer.writeUInt16LE(num, offset + 1);
+
     // 32 bit
   } else {
-    tools.writeUInt8(buffer, offset, OPS.OP_PUSHDATA4);
-    tools.writeUInt32(buffer, offset + 1, num, 'LE');
+    buffer.writeUInt8(OPS.OP_PUSHDATA4, offset);
+    buffer.writeUInt32LE(num, offset + 1);
   }
 
   return size;
@@ -55,14 +52,14 @@ export function encode(
  * @returns An object containing the opcode, number, and size, or null if decoding fails.
  */
 export function decode(
-  buffer: Uint8Array,
+  buffer: Buffer,
   offset: number,
 ): {
   opcode: number;
   number: number;
   size: number;
 } | null {
-  const opcode = tools.readUInt8(buffer, offset);
+  const opcode = buffer.readUInt8(offset);
   let num: number;
   let size: number;
 
@@ -74,13 +71,13 @@ export function decode(
     // 8 bit
   } else if (opcode === OPS.OP_PUSHDATA1) {
     if (offset + 2 > buffer.length) return null;
-    num = tools.readUInt8(buffer, offset + 1);
+    num = buffer.readUInt8(offset + 1);
     size = 2;
 
     // 16 bit
   } else if (opcode === OPS.OP_PUSHDATA2) {
     if (offset + 3 > buffer.length) return null;
-    num = tools.readUInt16(buffer, offset + 1, 'LE');
+    num = buffer.readUInt16LE(offset + 1);
     size = 3;
 
     // 32 bit
@@ -88,7 +85,7 @@ export function decode(
     if (offset + 5 > buffer.length) return null;
     if (opcode !== OPS.OP_PUSHDATA4) throw new Error('Unexpected opcode');
 
-    num = tools.readUInt32(buffer, offset + 1, 'LE');
+    num = buffer.readUInt32LE(offset + 1);
     size = 5;
   }
 

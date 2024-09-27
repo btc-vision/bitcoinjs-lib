@@ -1,9 +1,8 @@
 import * as assert from 'assert';
 import { beforeEach, describe, it } from 'mocha';
-import { Block } from 'bitcoinjs-lib';
-import * as tools from 'uint8array-tools';
+import { Block } from '..';
 
-import fixtures from './fixtures/block.json';
+import * as fixtures from './fixtures/block.json';
 
 describe('Block', () => {
   describe('version', () => {
@@ -24,7 +23,7 @@ describe('Block', () => {
         const bits = parseInt(f.bits, 16);
 
         assert.strictEqual(
-          tools.toHex(Block.calculateTarget(bits)),
+          Block.calculateTarget(bits).toString('hex'),
           f.expected,
         );
       });
@@ -37,10 +36,13 @@ describe('Block', () => {
         const block = Block.fromHex(f.hex);
 
         assert.strictEqual(block.version, f.version);
-        assert.strictEqual(tools.toHex(block.prevHash!), f.prevHash);
-        assert.strictEqual(tools.toHex(block.merkleRoot!), f.merkleRoot);
+        assert.strictEqual(block.prevHash!.toString('hex'), f.prevHash);
+        assert.strictEqual(block.merkleRoot!.toString('hex'), f.merkleRoot);
         if (block.witnessCommit) {
-          assert.strictEqual(tools.toHex(block.witnessCommit), f.witnessCommit);
+          assert.strictEqual(
+            block.witnessCommit.toString('hex'),
+            f.witnessCommit,
+          );
         }
         assert.strictEqual(block.timestamp, f.timestamp);
         assert.strictEqual(block.bits, f.bits);
@@ -87,7 +89,7 @@ describe('Block', () => {
       });
 
       it('returns ' + f.id + ' for ' + f.description, () => {
-        assert.strictEqual(tools.toHex(block.getHash()), f.hash);
+        assert.strictEqual(block.getHash().toString('hex'), f.hash);
         assert.strictEqual(block.getId(), f.id);
       });
     });
@@ -127,7 +129,7 @@ describe('Block', () => {
 
       it('returns ' + f.merkleRoot + ' for ' + f.id, () => {
         assert.strictEqual(
-          tools.toHex(Block.calculateMerkleRoot(block.transactions!)),
+          Block.calculateMerkleRoot(block.transactions!).toString('hex'),
           f.merkleRoot,
         );
       });
@@ -135,7 +137,9 @@ describe('Block', () => {
       if (f.witnessCommit) {
         it('returns witness commit ' + f.witnessCommit + ' for ' + f.id, () => {
           assert.strictEqual(
-            tools.toHex(Block.calculateMerkleRoot(block.transactions!, true)),
+            Block.calculateMerkleRoot(block.transactions!, true).toString(
+              'hex',
+            ),
             f.witnessCommit,
           );
         });

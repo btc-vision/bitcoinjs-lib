@@ -1,27 +1,17 @@
-import { sha256 } from '@noble/hashes/sha256';
-import { bitcoin as BITCOIN_NETWORK } from '../networks.js';
-import * as bscript from '../script.js';
-import {
-  Buffer256bitSchema,
-  BufferSchema,
-  isPoint,
-  NBufferSchemaFactory,
-  stacksEqual,
-  NullablePartial,
-} from '../types.js';
-import { Payment, PaymentOpts, StackElement, StackFunction } from './index.js';
-import * as lazy from './lazy.js';
+import * as bcrypto from '../crypto';
+import { bitcoin as BITCOIN_NETWORK } from '../networks';
+import * as bscript from '../script';
+import { isPoint, typeforce as typef, stacksEqual } from '../types';
+import { Payment, PaymentOpts, StackElement, StackFunction } from './index';
+import * as lazy from './lazy';
 import { bech32 } from 'bech32';
-import * as tools from 'uint8array-tools';
-import * as v from 'valibot';
-
 const OPS = bscript.OPS;
 
-const EMPTY_BUFFER = new Uint8Array(0);
+const EMPTY_BUFFER = Buffer.alloc(0);
 
 function chunkHasUncompressedPubkey(chunk: StackElement): boolean {
   if (
-    chunk instanceof Uint8Array &&
+    Buffer.isBuffer(chunk) &&
     chunk.length === 65 &&
     chunk[0] === 0x04 &&
     isPoint(chunk)
@@ -48,23 +38,23 @@ export function p2wsh(a: Payment, opts?: PaymentOpts): Payment {
     throw new TypeError('Not enough data');
   opts = Object.assign({ validate: true }, opts || {});
 
-  v.parse(
-    NullablePartial({
-      network: v.object({}),
+  typef(
+    {
+      network: typef.maybe(typef.Object),
 
-      address: v.string(),
-      hash: Buffer256bitSchema,
-      output: NBufferSchemaFactory(34),
+      address: typef.maybe(typef.String),
+      hash: typef.maybe(typef.BufferN(32)),
+      output: typef.maybe(typef.BufferN(34)),
 
-      redeem: NullablePartial({
-        input: BufferSchema,
-        network: v.object({}),
-        output: BufferSchema,
-        witness: v.array(BufferSchema),
+      redeem: typef.maybe({
+        input: typef.maybe(typef.Buffer),
+        network: typef.maybe(typef.Object),
+        output: typef.maybe(typef.Buffer),
+        witness: typef.maybe(typef.arrayOf(typef.Buffer)),
       }),
-      input: NBufferSchemaFactory(0),
-      witness: v.array(BufferSchema),
-    }),
+      input: typef.maybe(typef.BufferN(0)),
+      witness: typef.maybe(typef.arrayOf(typef.Buffer)),
+    },
     a,
   );
 
@@ -75,7 +65,7 @@ export function p2wsh(a: Payment, opts?: PaymentOpts): Payment {
     return {
       version,
       prefix: result.prefix,
-      data: Uint8Array.from(data),
+      data: Buffer.from(data),
     };
   });
   const _rchunks = lazy.value(() => {
@@ -98,7 +88,7 @@ export function p2wsh(a: Payment, opts?: PaymentOpts): Payment {
   lazy.prop(o, 'hash', () => {
     if (a.output) return a.output.slice(2);
     if (a.address) return _address().data;
-    if (o.redeem && o.redeem.output) return sha256(o.redeem.output);
+    if (o.redeem && o.redeem.output) return bcrypto.sha256(o.redeem.output);
   });
   lazy.prop(o, 'output', () => {
     if (!o.hash) return;
@@ -130,13 +120,13 @@ export function p2wsh(a: Payment, opts?: PaymentOpts): Payment {
       // assign, and blank the existing input
       o.redeem = Object.assign({ witness: stack }, a.redeem);
       o.redeem.input = EMPTY_BUFFER;
-      return ([] as Uint8Array[]).concat(stack, a.redeem.output);
+      return ([] as Buffer[]).concat(stack, a.redeem.output);
     }
 
     if (!a.redeem) return;
     if (!a.redeem.output) return;
     if (!a.redeem.witness) return;
-    return ([] as Uint8Array[]).concat(a.redeem.witness, a.redeem.output);
+    return ([] as Buffer[]).concat(a.redeem.witness, a.redeem.output);
   });
   lazy.prop(o, 'name', () => {
     const nameParts = ['p2wsh'];
@@ -147,7 +137,7 @@ export function p2wsh(a: Payment, opts?: PaymentOpts): Payment {
 
   // extended validation
   if (opts.validate) {
-    let hash = Uint8Array.from([]);
+    let hash: Buffer = Buffer.from([]);
     if (a.address) {
       if (_address().prefix !== network.bech32)
         throw new TypeError('Invalid prefix or Network mismatch');
@@ -159,7 +149,7 @@ export function p2wsh(a: Payment, opts?: PaymentOpts): Payment {
     }
 
     if (a.hash) {
-      if (hash.length > 0 && tools.compare(hash, a.hash) !== 0)
+      if (hash.length > 0 && !hash.equals(a.hash))
         throw new TypeError('Hash mismatch');
       else hash = a.hash;
     }
@@ -172,7 +162,7 @@ export function p2wsh(a: Payment, opts?: PaymentOpts): Payment {
       )
         throw new TypeError('Output is invalid');
       const hash2 = a.output.slice(2);
-      if (hash.length > 0 && tools.compare(hash, hash2) !== 0)
+      if (hash.length > 0 && !hash.equals(hash2))
         throw new TypeError('Hash mismatch');
       else hash = hash2;
     }
@@ -205,8 +195,8 @@ export function p2wsh(a: Payment, opts?: PaymentOpts): Payment {
           );
 
         // match hash against other sources
-        const hash2 = sha256(a.redeem.output);
-        if (hash.length > 0 && tools.compare(hash, hash2) !== 0)
+        const hash2 = bcrypto.sha256(a.redeem.output);
+        if (hash.length > 0 && !hash.equals(hash2))
           throw new TypeError('Hash mismatch');
         else hash = hash2;
       }
@@ -234,11 +224,7 @@ export function p2wsh(a: Payment, opts?: PaymentOpts): Payment {
 
     if (a.witness && a.witness.length > 0) {
       const wScript = a.witness[a.witness.length - 1];
-      if (
-        a.redeem &&
-        a.redeem.output &&
-        tools.compare(a.redeem.output, wScript) !== 0
-      )
+      if (a.redeem && a.redeem.output && !a.redeem.output.equals(wScript))
         throw new TypeError('Witness and redeem.output mismatch');
       if (
         a.witness.some(chunkHasUncompressedPubkey) ||

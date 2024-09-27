@@ -3,22 +3,21 @@ import {
   BufferWriter,
   reverseBuffer,
   varuint,
-} from './bufferutils.js';
-import * as bcrypto from './crypto.js';
-import { sha256 } from '@noble/hashes/sha256';
-import * as bscript from './script.js';
-import { OPS as opcodes } from './script.js';
-import * as types from './types.js';
-import * as tools from 'uint8array-tools';
-import * as v from 'valibot';
+} from './bufferutils';
+import * as bcrypto from './crypto';
+import * as bscript from './script';
+import { OPS as opcodes } from './script';
+import * as types from './types';
 
-function varSliceSize(someScript: Uint8Array): number {
+const { typeforce } = types;
+
+function varSliceSize(someScript: Buffer): number {
   const length = someScript.length;
 
   return varuint.encodingLength(length) + length;
 }
 
-function vectorSize(someVector: Uint8Array[]): number {
+function vectorSize(someVector: Buffer[]): number {
   const length = someVector.length;
 
   return (
@@ -29,15 +28,17 @@ function vectorSize(someVector: Uint8Array[]): number {
   );
 }
 
-const EMPTY_BUFFER = new Uint8Array(0);
-const EMPTY_WITNESS: Uint8Array[] = [];
-const ZERO = tools.fromHex(
+const EMPTY_BUFFER: Buffer = Buffer.allocUnsafe(0);
+const EMPTY_WITNESS: Buffer[] = [];
+const ZERO: Buffer = Buffer.from(
   '0000000000000000000000000000000000000000000000000000000000000000',
+  'hex',
 );
-const ONE = tools.fromHex(
+const ONE: Buffer = Buffer.from(
   '0000000000000000000000000000000000000000000000000000000000000001',
+  'hex',
 );
-const VALUE_UINT64_MAX = tools.fromHex('ffffffffffffffff');
+const VALUE_UINT64_MAX: Buffer = Buffer.from('ffffffffffffffff', 'hex');
 const BLANK_OUTPUT = {
   script: EMPTY_BUFFER,
   valueBuffer: VALUE_UINT64_MAX,
@@ -48,16 +49,16 @@ function isOutput(out: Output): boolean {
 }
 
 export interface Output {
-  script: Uint8Array;
-  value: bigint;
+  script: Buffer;
+  value: number;
 }
 
 export interface Input {
-  hash: Uint8Array;
+  hash: Buffer;
   index: number;
-  script: Uint8Array;
+  script: Buffer;
   sequence: number;
-  witness: Uint8Array[];
+  witness: Buffer[];
 }
 
 /**
@@ -75,7 +76,7 @@ export class Transaction {
   static readonly ADVANCED_TRANSACTION_MARKER = 0x00;
   static readonly ADVANCED_TRANSACTION_FLAG = 0x01;
 
-  static fromBuffer(buffer: Uint8Array, _NO_STRICT?: boolean): Transaction {
+  static fromBuffer(buffer: Buffer, _NO_STRICT?: boolean): Transaction {
     const bufferReader = new BufferReader(buffer);
 
     const tx = new Transaction();
@@ -108,7 +109,7 @@ export class Transaction {
     const voutLen = bufferReader.readVarInt();
     for (let i = 0; i < voutLen; ++i) {
       tx.outs.push({
-        value: bufferReader.readInt64(),
+        value: bufferReader.readUInt64(),
         script: bufferReader.readVarSlice(),
       });
     }
@@ -133,11 +134,11 @@ export class Transaction {
   }
 
   static fromHex(hex: string): Transaction {
-    return Transaction.fromBuffer(tools.fromHex(hex), false);
+    return Transaction.fromBuffer(Buffer.from(hex, 'hex'), false);
   }
 
-  static isCoinbaseHash(buffer: Uint8Array): boolean {
-    v.parse(types.Hash256bitSchema, buffer);
+  static isCoinbaseHash(buffer: Buffer): boolean {
+    typeforce(types.Hash256bit, buffer);
     for (let i = 0; i < 32; ++i) {
       if (buffer[i] !== 0) return false;
     }
@@ -156,22 +157,22 @@ export class Transaction {
   }
 
   addInput(
-    hash: Uint8Array,
+    hash: Buffer,
     index: number,
     sequence?: number,
-    scriptSig?: Uint8Array,
+    scriptSig?: Buffer,
   ): number {
-    v.parse(
-      v.tuple([
-        types.Hash256bitSchema,
-        types.UInt32Schema,
-        v.nullable(v.optional(types.UInt32Schema)),
-        v.nullable(v.optional(types.BufferSchema)),
-      ]),
-      [hash, index, sequence, scriptSig],
+    typeforce(
+      types.tuple(
+        types.Hash256bit,
+        types.UInt32,
+        types.maybe(types.UInt32),
+        types.maybe(types.Buffer),
+      ),
+      arguments,
     );
 
-    if (sequence === undefined || sequence === null) {
+    if (types.Null(sequence)) {
       sequence = Transaction.DEFAULT_SEQUENCE;
     }
 
@@ -187,11 +188,8 @@ export class Transaction {
     );
   }
 
-  addOutput(scriptPubKey: Uint8Array, value: bigint): number {
-    v.parse(v.tuple([types.BufferSchema, types.SatoshiSchema]), [
-      scriptPubKey,
-      value,
-    ]);
+  addOutput(scriptPubKey: Buffer, value: number): number {
+    typeforce(types.tuple(types.Buffer, types.Satoshi), arguments);
 
     // Add the output and return the output's index
     return (
@@ -274,14 +272,13 @@ export class Transaction {
    */
   hashForSignature(
     inIndex: number,
-    prevOutScript: Uint8Array,
+    prevOutScript: Buffer,
     hashType: number,
-  ): Uint8Array {
-    v.parse(v.tuple([types.UInt32Schema, types.BufferSchema, v.number()]), [
-      inIndex,
-      prevOutScript,
-      hashType,
-    ]);
+  ): Buffer {
+    typeforce(
+      types.tuple(types.UInt32, types.Buffer, /* types.UInt8 */ types.Number),
+      arguments,
+    );
 
     // https://github.com/bitcoin/bitcoin/blob/master/src/test/sighash_tests.cpp#L29
     if (inIndex >= this.ins.length) return ONE;
@@ -342,8 +339,8 @@ export class Transaction {
     }
 
     // serialize and hash
-    const buffer = new Uint8Array(txTmp.byteLength(false) + 4);
-    tools.writeInt32(buffer, buffer.length - 4, hashType, 'LE');
+    const buffer: Buffer = Buffer.allocUnsafe(txTmp.byteLength(false) + 4);
+    buffer.writeInt32LE(hashType, buffer.length - 4);
     txTmp.__toBuffer(buffer, 0, false);
 
     return bcrypto.hash256(buffer);
@@ -351,21 +348,21 @@ export class Transaction {
 
   hashForWitnessV1(
     inIndex: number,
-    prevOutScripts: Uint8Array[],
-    values: bigint[],
+    prevOutScripts: Buffer[],
+    values: number[],
     hashType: number,
-    leafHash?: Uint8Array,
-    annex?: Uint8Array,
-  ): Uint8Array {
+    leafHash?: Buffer,
+    annex?: Buffer,
+  ): Buffer {
     // https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki#common-signature-message
-    v.parse(
-      v.tuple([
-        types.UInt32Schema,
-        v.array(types.BufferSchema),
-        v.array(types.SatoshiSchema),
-        types.UInt32Schema,
-      ]),
-      [inIndex, prevOutScripts, values, hashType],
+    typeforce(
+      types.tuple(
+        types.UInt32,
+        typeforce.arrayOf(types.Buffer),
+        typeforce.arrayOf(types.Satoshi),
+        types.UInt32,
+      ),
+      arguments,
     );
 
     if (
@@ -398,11 +395,11 @@ export class Transaction {
         bufferWriter.writeSlice(txIn.hash);
         bufferWriter.writeUInt32(txIn.index);
       });
-      hashPrevouts = sha256(bufferWriter.end());
+      hashPrevouts = bcrypto.sha256(bufferWriter.end());
 
       bufferWriter = BufferWriter.withCapacity(8 * this.ins.length);
-      values.forEach(value => bufferWriter.writeInt64(value));
-      hashAmounts = sha256(bufferWriter.end());
+      values.forEach(value => bufferWriter.writeUInt64(value));
+      hashAmounts = bcrypto.sha256(bufferWriter.end());
 
       bufferWriter = BufferWriter.withCapacity(
         prevOutScripts.map(varSliceSize).reduce((a, b) => a + b),
@@ -410,11 +407,11 @@ export class Transaction {
       prevOutScripts.forEach(prevOutScript =>
         bufferWriter.writeVarSlice(prevOutScript),
       );
-      hashScriptPubKeys = sha256(bufferWriter.end());
+      hashScriptPubKeys = bcrypto.sha256(bufferWriter.end());
 
       bufferWriter = BufferWriter.withCapacity(4 * this.ins.length);
       this.ins.forEach(txIn => bufferWriter.writeUInt32(txIn.sequence));
-      hashSequences = sha256(bufferWriter.end());
+      hashSequences = bcrypto.sha256(bufferWriter.end());
     }
 
     if (!(isNone || isSingle)) {
@@ -426,20 +423,20 @@ export class Transaction {
       const bufferWriter = BufferWriter.withCapacity(txOutsSize);
 
       this.outs.forEach(out => {
-        bufferWriter.writeInt64(out.value);
+        bufferWriter.writeUInt64(out.value);
         bufferWriter.writeVarSlice(out.script);
       });
 
-      hashOutputs = sha256(bufferWriter.end());
+      hashOutputs = bcrypto.sha256(bufferWriter.end());
     } else if (isSingle && inIndex < this.outs.length) {
       const output = this.outs[inIndex];
 
       const bufferWriter = BufferWriter.withCapacity(
         8 + varSliceSize(output.script),
       );
-      bufferWriter.writeInt64(output.value);
+      bufferWriter.writeUInt64(output.value);
       bufferWriter.writeVarSlice(output.script);
-      hashOutputs = sha256(bufferWriter.end());
+      hashOutputs = bcrypto.sha256(bufferWriter.end());
     }
 
     const spendType = (leafHash ? 2 : 0) + (annex ? 1 : 0);
@@ -473,7 +470,7 @@ export class Transaction {
       const input = this.ins[inIndex];
       sigMsgWriter.writeSlice(input.hash);
       sigMsgWriter.writeUInt32(input.index);
-      sigMsgWriter.writeInt64(values[inIndex]);
+      sigMsgWriter.writeUInt64(values[inIndex]);
       sigMsgWriter.writeVarSlice(prevOutScripts[inIndex]);
       sigMsgWriter.writeUInt32(input.sequence);
     } else {
@@ -482,7 +479,7 @@ export class Transaction {
     if (annex) {
       const bufferWriter = BufferWriter.withCapacity(varSliceSize(annex));
       bufferWriter.writeVarSlice(annex);
-      sigMsgWriter.writeSlice(sha256(bufferWriter.end()));
+      sigMsgWriter.writeSlice(bcrypto.sha256(bufferWriter.end()));
     }
     // Output
     if (isSingle) {
@@ -499,27 +496,22 @@ export class Transaction {
     // https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki#cite_note-19
     return bcrypto.taggedHash(
       'TapSighash',
-      tools.concat([Uint8Array.from([0x00]), sigMsgWriter.end()]),
+      Buffer.concat([Buffer.from([0x00]), sigMsgWriter.end()]),
     );
   }
 
   hashForWitnessV0(
     inIndex: number,
-    prevOutScript: Uint8Array,
-    value: bigint,
+    prevOutScript: Buffer,
+    value: number,
     hashType: number,
-  ): Uint8Array {
-    v.parse(
-      v.tuple([
-        types.UInt32Schema,
-        types.BufferSchema,
-        types.SatoshiSchema,
-        types.UInt32Schema,
-      ]),
-      [inIndex, prevOutScript, value, hashType],
+  ): Buffer {
+    typeforce(
+      types.tuple(types.UInt32, types.Buffer, types.Satoshi, types.UInt32),
+      arguments,
     );
 
-    let tbuffer: Uint8Array = Uint8Array.from([]);
+    let tbuffer: Buffer = Buffer.from([]);
     let bufferWriter: BufferWriter;
 
     let hashOutputs = ZERO;
@@ -527,7 +519,7 @@ export class Transaction {
     let hashSequence = ZERO;
 
     if (!(hashType & Transaction.SIGHASH_ANYONECANPAY)) {
-      tbuffer = new Uint8Array(36 * this.ins.length);
+      tbuffer = Buffer.allocUnsafe(36 * this.ins.length);
       bufferWriter = new BufferWriter(tbuffer, 0);
 
       this.ins.forEach(txIn => {
@@ -543,7 +535,7 @@ export class Transaction {
       (hashType & 0x1f) !== Transaction.SIGHASH_SINGLE &&
       (hashType & 0x1f) !== Transaction.SIGHASH_NONE
     ) {
-      tbuffer = new Uint8Array(4 * this.ins.length);
+      tbuffer = Buffer.allocUnsafe(4 * this.ins.length);
       bufferWriter = new BufferWriter(tbuffer, 0);
 
       this.ins.forEach(txIn => {
@@ -561,11 +553,11 @@ export class Transaction {
         return sum + 8 + varSliceSize(output.script);
       }, 0);
 
-      tbuffer = new Uint8Array(txOutsSize);
+      tbuffer = Buffer.allocUnsafe(txOutsSize);
       bufferWriter = new BufferWriter(tbuffer, 0);
 
       this.outs.forEach(out => {
-        bufferWriter.writeInt64(out.value);
+        bufferWriter.writeUInt64(out.value);
         bufferWriter.writeVarSlice(out.script);
       });
 
@@ -576,15 +568,15 @@ export class Transaction {
     ) {
       const output = this.outs[inIndex];
 
-      tbuffer = new Uint8Array(8 + varSliceSize(output.script));
+      tbuffer = Buffer.allocUnsafe(8 + varSliceSize(output.script));
       bufferWriter = new BufferWriter(tbuffer, 0);
-      bufferWriter.writeInt64(output.value);
+      bufferWriter.writeUInt64(output.value);
       bufferWriter.writeVarSlice(output.script);
 
       hashOutputs = bcrypto.hash256(tbuffer);
     }
 
-    tbuffer = new Uint8Array(156 + varSliceSize(prevOutScript));
+    tbuffer = Buffer.allocUnsafe(156 + varSliceSize(prevOutScript));
     bufferWriter = new BufferWriter(tbuffer, 0);
 
     const input = this.ins[inIndex];
@@ -594,7 +586,7 @@ export class Transaction {
     bufferWriter.writeSlice(input.hash);
     bufferWriter.writeUInt32(input.index);
     bufferWriter.writeVarSlice(prevOutScript);
-    bufferWriter.writeInt64(value);
+    bufferWriter.writeUInt64(value);
     bufferWriter.writeUInt32(input.sequence);
     bufferWriter.writeSlice(hashOutputs);
     bufferWriter.writeUInt32(this.locktime);
@@ -602,47 +594,44 @@ export class Transaction {
     return bcrypto.hash256(tbuffer);
   }
 
-  getHash(forWitness?: boolean): Uint8Array {
+  getHash(forWitness?: boolean): Buffer {
     // wtxid for coinbase is always 32 bytes of 0x00
-    if (forWitness && this.isCoinbase()) return new Uint8Array(32);
+    if (forWitness && this.isCoinbase()) return Buffer.alloc(32, 0);
     return bcrypto.hash256(this.__toBuffer(undefined, undefined, forWitness));
   }
 
   getId(): string {
     // transaction hash's are displayed in reverse order
-    return tools.toHex(reverseBuffer(this.getHash(false)));
+    return reverseBuffer(this.getHash(false)).toString('hex');
   }
 
-  toBuffer(buffer?: Uint8Array, initialOffset?: number): Uint8Array {
+  toBuffer(buffer?: Buffer, initialOffset?: number): Buffer {
     return this.__toBuffer(buffer, initialOffset, true);
   }
 
   toHex(): string {
-    return tools.toHex(this.toBuffer(undefined, undefined));
+    return this.toBuffer(undefined, undefined).toString('hex');
   }
 
-  setInputScript(index: number, scriptSig: Uint8Array): void {
-    v.parse(v.tuple([v.number(), types.BufferSchema]), [index, scriptSig]);
+  setInputScript(index: number, scriptSig: Buffer): void {
+    typeforce(types.tuple(types.Number, types.Buffer), arguments);
 
     this.ins[index].script = scriptSig;
   }
 
-  setWitness(index: number, witness: Uint8Array[]): void {
-    v.parse(v.tuple([v.number(), v.array(types.BufferSchema)]), [
-      index,
-      witness,
-    ]);
+  setWitness(index: number, witness: Buffer[]): void {
+    typeforce(types.tuple(types.Number, [types.Buffer]), arguments);
 
     this.ins[index].witness = witness;
   }
 
   private __toBuffer(
-    buffer?: Uint8Array,
+    buffer?: Buffer,
     initialOffset?: number,
     _ALLOW_WITNESS: boolean = false,
-  ): Uint8Array {
+  ): Buffer {
     if (!buffer)
-      buffer = new Uint8Array(this.byteLength(_ALLOW_WITNESS)) as Uint8Array;
+      buffer = Buffer.allocUnsafe(this.byteLength(_ALLOW_WITNESS)) as Buffer;
 
     const bufferWriter = new BufferWriter(buffer, initialOffset || 0);
 
@@ -667,7 +656,7 @@ export class Transaction {
     bufferWriter.writeVarInt(this.outs.length);
     this.outs.forEach(txOut => {
       if (isOutput(txOut)) {
-        bufferWriter.writeInt64(txOut.value);
+        bufferWriter.writeUInt64(txOut.value);
       } else {
         bufferWriter.writeSlice((txOut as any).valueBuffer);
       }

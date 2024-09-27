@@ -1,8 +1,8 @@
 import * as assert from 'assert';
 import { beforeEach, describe, it } from 'mocha';
-import { Transaction, script as bscript } from 'bitcoinjs-lib';
-import fixtures from './fixtures/transaction.json';
-import * as tools from 'uint8array-tools';
+import { Transaction } from '..';
+import * as bscript from '../src/script';
+import * as fixtures from './fixtures/transaction.json';
 
 describe('Transaction', () => {
   function fromRaw(raw: any, noWitness?: boolean): Transaction {
@@ -32,7 +32,7 @@ describe('Transaction', () => {
     });
 
     raw.outs.forEach((txOut: any) => {
-      let script: Uint8Array;
+      let script: Buffer;
 
       if (txOut.data) {
         script = Buffer.from(txOut.data, 'hex');
@@ -40,7 +40,7 @@ describe('Transaction', () => {
         script = bscript.fromASM(txOut.script);
       }
 
-      tx.addOutput(script!, BigInt(txOut.value));
+      tx.addOutput(script!, txOut.value);
     });
 
     return tx;
@@ -112,8 +112,8 @@ describe('Transaction', () => {
 
       assert.strictEqual(a.length, byteLength);
       assert.strictEqual(b.length, byteLength);
-      assert.strictEqual(tools.toHex(a), f.hex);
-      assert.strictEqual(tools.toHex(b), f.hex);
+      assert.strictEqual(a.toString('hex'), f.hex);
+      assert.strictEqual(b.toString('hex'), f.hex);
       assert.deepStrictEqual(a, b);
       assert.deepStrictEqual(a, target.slice(0, byteLength));
       assert.deepStrictEqual(b, target.slice(byteLength));
@@ -192,8 +192,8 @@ describe('Transaction', () => {
   describe('addOutput', () => {
     it('returns an index', () => {
       const tx = new Transaction();
-      assert.strictEqual(tx.addOutput(Buffer.alloc(0), 0n), 0);
-      assert.strictEqual(tx.addOutput(Buffer.alloc(0), 0n), 1);
+      assert.strictEqual(tx.addOutput(Buffer.alloc(0), 0), 0);
+      assert.strictEqual(tx.addOutput(Buffer.alloc(0), 0), 1);
     });
   });
 
@@ -222,7 +222,7 @@ describe('Transaction', () => {
       it('should return the id for ' + f.id + '(' + f.description + ')', () => {
         const tx = Transaction.fromHex(f.whex || f.hex);
 
-        assert.strictEqual(tools.toHex(tx.getHash()), f.hash);
+        assert.strictEqual(tx.getHash().toString('hex'), f.hash);
         assert.strictEqual(tx.getId(), f.id);
       });
     }
@@ -263,7 +263,7 @@ describe('Transaction', () => {
         ),
         0,
       );
-      tx.addOutput(randScript, 5000000000n);
+      tx.addOutput(randScript, 5000000000);
 
       const original = (tx as any).__toBuffer;
       (tx as any).__toBuffer = function (
@@ -298,7 +298,7 @@ describe('Transaction', () => {
           const script = bscript.fromASM(f.script);
 
           assert.strictEqual(
-            tools.toHex(tx.hashForSignature(f.inIndex, script, f.type)),
+            tx.hashForSignature(f.inIndex, script, f.type).toString('hex'),
             f.hash,
           );
         },
@@ -318,9 +318,9 @@ describe('Transaction', () => {
           const script = bscript.fromASM(f.script);
 
           assert.strictEqual(
-            tools.toHex(
-              tx.hashForWitnessV0(f.inIndex, script, BigInt(f.value), f.type),
-            ),
+            tx
+              .hashForWitnessV0(f.inIndex, script, f.value, f.type)
+              .toString('hex'),
             f.hash,
           );
         },
@@ -334,16 +334,16 @@ describe('Transaction', () => {
       const prevOutScripts = f.utxos.map(({ scriptHex }) =>
         Buffer.from(scriptHex, 'hex'),
       );
-      const values = f.utxos.map(({ value }) => BigInt(value));
+      const values = f.utxos.map(({ value }) => value);
 
       f.cases.forEach(c => {
-        let hash: Uint8Array;
+        let hash: Buffer;
 
         it(`should hash to ${c.hash} for ${f.description}:${c.vin}`, () => {
           const hashType = Buffer.from(c.typeHex, 'hex').readUInt8(0);
 
           hash = tx.hashForWitnessV1(c.vin, prevOutScripts, values, hashType);
-          assert.strictEqual(tools.toHex(hash), c.hash);
+          assert.strictEqual(hash.toString('hex'), c.hash);
         });
       });
     });
@@ -353,7 +353,7 @@ describe('Transaction', () => {
     it('only accepts a witness stack (Array of Buffers)', () => {
       assert.throws(() => {
         (new Transaction().setWitness as any)(0, 'foobar');
-      }, /ValiError: Invalid type: Expected Array but received "foobar"/);
+      }, /Expected property "1" of type \[Buffer], got String "foobar"/);
     });
   });
 });

@@ -3,7 +3,7 @@ import BIP32Factory from 'bip32';
 import * as ecc from 'tiny-secp256k1';
 import * as bip39 from 'bip39';
 import { describe, it } from 'mocha';
-import * as bitcoin from 'bitcoinjs-lib';
+import * as bitcoin from '../..';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -123,7 +123,7 @@ describe('bitcoinjs-lib (BIP32)', () => {
     // var mnemonic = bip39.generateMnemonic()
     const mnemonic =
       'praise you muffin lion enable neck grocery crumble super myself license ghost';
-    assert.strictEqual(bip39.validateMnemonic(mnemonic), true);
+    assert(bip39.validateMnemonic(mnemonic));
 
     const seed = bip39.mnemonicToSeedSync(mnemonic);
     const root = bip32.fromSeed(seed);

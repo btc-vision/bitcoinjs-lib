@@ -2,22 +2,19 @@ import * as assert from 'assert';
 import ECPairFactory from 'ecpair';
 import * as ecc from 'tiny-secp256k1';
 import { describe, it } from 'mocha';
-import * as bitcoin from 'bitcoinjs-lib';
-import { regtestUtils } from './_regtest.js';
-import { randomBytes } from 'crypto';
+import * as bitcoin from '../..';
+import { regtestUtils } from './_regtest';
 
 const ECPair = ECPairFactory(ecc);
 const dhttp = regtestUtils.dhttp;
 const TESTNET = bitcoin.networks.testnet;
-
-const rng = (size: number) => randomBytes(size);
 
 describe('bitcoinjs-lib (addresses)', () => {
   it(
     'can generate a random address [and support the retrieval of ' +
       'transactions for that address (via 3PBP)]',
     async () => {
-      const keyPair = ECPair.makeRandom({ rng });
+      const keyPair = ECPair.makeRandom();
       const { address } = bitcoin.payments.p2pkh({ pubkey: keyPair.publicKey });
 
       // bitcoin P2PKH addresses start with a '1'
@@ -110,7 +107,7 @@ describe('bitcoinjs-lib (addresses)', () => {
 
   // examples using other network information
   it('can generate a Testnet address', () => {
-    const keyPair = ECPair.makeRandom({ network: TESTNET, rng });
+    const keyPair = ECPair.makeRandom({ network: TESTNET });
     const { address } = bitcoin.payments.p2pkh({
       pubkey: keyPair.publicKey,
       network: TESTNET,
@@ -137,7 +134,7 @@ describe('bitcoinjs-lib (addresses)', () => {
       wif: 0xb0,
     };
 
-    const keyPair = ECPair.makeRandom({ network: LITECOIN, rng });
+    const keyPair = ECPair.makeRandom({ network: LITECOIN });
     const { address } = bitcoin.payments.p2pkh({
       pubkey: keyPair.publicKey,
       network: LITECOIN,

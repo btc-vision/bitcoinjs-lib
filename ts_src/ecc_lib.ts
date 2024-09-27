@@ -1,5 +1,4 @@
-import { TinySecp256k1Interface } from './types.js';
-import * as tools from 'uint8array-tools';
+import { TinySecp256k1Interface } from './types';
 
 const _ECCLIB_CACHE: { eccLib?: TinySecp256k1Interface } = {};
 
@@ -36,7 +35,7 @@ export function getEccLib(): TinySecp256k1Interface {
   return _ECCLIB_CACHE.eccLib;
 }
 
-const h = (hex: string): Uint8Array => tools.fromHex(hex);
+const h = (hex: string): Buffer => Buffer.from(hex, 'hex');
 
 /**
  * Verifies the ECC functionality.
@@ -84,7 +83,7 @@ function verifyEcc(ecc: TinySecp256k1Interface): void {
     } else {
       assert(r !== null);
       assert(r!.parity === t.parity);
-      assert(tools.compare(r!.xOnlyPubkey, h(t.result)) === 0);
+      assert(Buffer.from(r!.xOnlyPubkey).equals(h(t.result)));
     }
   });
 }

@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import { describe, it } from 'mocha';
-import * as types from 'bitcoinjs-lib/src/types';
-import * as v from 'valibot';
+import * as types from '../src/types';
+const typeforce = require('typeforce');
 
 describe('types', () => {
   describe('Buffer Hash160/Hash256', () => {
@@ -9,21 +9,21 @@ describe('types', () => {
     const buffer32byte = Buffer.alloc(32);
 
     it('return true for valid size', () => {
-      assert.equal(v.is(types.Hash160bitSchema, buffer20byte), true);
-      assert.equal(v.is(types.Hash256bitSchema, buffer32byte), true);
+      assert(types.Hash160bit(buffer20byte));
+      assert(types.Hash256bit(buffer32byte));
     });
 
     it('return true for oneOf', () => {
       assert.doesNotThrow(() => {
-        v.parse(
-          v.union([types.Hash160bitSchema, types.Hash256bitSchema]),
+        typeforce(
+          types.oneOf(types.Hash160bit, types.Hash256bit),
           buffer32byte,
         );
       });
 
       assert.doesNotThrow(() => {
-        v.parse(
-          v.union([types.Hash256bitSchema, types.Hash160bitSchema]),
+        typeforce(
+          types.oneOf(types.Hash256bit, types.Hash160bit),
           buffer32byte,
         );
       });
@@ -31,28 +31,26 @@ describe('types', () => {
 
     it('throws for invalid size', () => {
       assert.throws(() => {
-        v.parse(types.Hash160bitSchema, buffer32byte);
-      }, /ValiError: Invalid length: Expected 20 but received 32/);
+        types.Hash160bit(buffer32byte);
+      }, /Expected Buffer\(Length: 20\), got Buffer\(Length: 32\)/);
 
       assert.throws(() => {
-        v.parse(types.Hash256bitSchema, buffer20byte);
-      }, /ValiError: Invalid length: Expected 32 but received 20/);
+        types.Hash256bit(buffer20byte);
+      }, /Expected Buffer\(Length: 32\), got Buffer\(Length: 20\)/);
     });
   });
 
   describe('Satoshi', () => {
     [
-      { value: BigInt(-1), result: false },
-      { value: BigInt(0), result: true },
-      { value: BigInt(1), result: true },
-      { value: BigInt(20999999 * 1e8), result: true },
-      { value: BigInt(21000000 * 1e8), result: true },
-      { value: BigInt(21000001 * 1e8), result: true },
-      { value: BigInt((1n << 63n) - 1n), result: true },
-      { value: BigInt(1n << 63n), result: false },
+      { value: -1, result: false },
+      { value: 0, result: true },
+      { value: 1, result: true },
+      { value: 20999999 * 1e8, result: true },
+      { value: 21000000 * 1e8, result: true },
+      { value: 21000001 * 1e8, result: false },
     ].forEach(f => {
       it('returns ' + f.result + ' for valid for ' + f.value, () => {
-        assert.strictEqual(v.is(types.SatoshiSchema, f.value), f.result);
+        assert.strictEqual(types.Satoshi(f.value), f.result);
       });
     });
   });

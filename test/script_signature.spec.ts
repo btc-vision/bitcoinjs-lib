@@ -1,25 +1,23 @@
 import * as assert from 'assert';
 import { describe, it } from 'mocha';
-import { script } from 'bitcoinjs-lib';
-const bscriptSig = script.signature;
-import fixtures from './fixtures/signature.json';
-import * as tools from 'uint8array-tools';
+import { signature as bscriptSig } from '../src/script';
+import * as fixtures from './fixtures/signature.json';
 
 describe('Script Signatures', () => {
-  function fromRaw(signature: { r: string; s: string }): Uint8Array {
-    return tools.concat([
-      tools.fromHex(signature.r),
-      tools.fromHex(signature.s),
-    ]);
+  function fromRaw(signature: { r: string; s: string }): Buffer {
+    return Buffer.concat(
+      [Buffer.from(signature.r, 'hex'), Buffer.from(signature.s, 'hex')],
+      64,
+    );
   }
 
-  function toRaw(signature: Uint8Array): {
+  function toRaw(signature: Buffer): {
     r: string;
     s: string;
   } {
     return {
-      r: tools.toHex(signature.subarray(0, 32)),
-      s: tools.toHex(signature.subarray(32, 64)),
+      r: signature.slice(0, 32).toString('hex'),
+      s: signature.slice(32, 64).toString('hex'),
     };
   }
 
@@ -28,7 +26,7 @@ describe('Script Signatures', () => {
       it('encodes ' + f.hex, () => {
         const buffer = bscriptSig.encode(fromRaw(f.raw), f.hashType);
 
-        assert.strictEqual(tools.toHex(buffer), f.hex);
+        assert.strictEqual(buffer.toString('hex'), f.hex);
       });
     });
 

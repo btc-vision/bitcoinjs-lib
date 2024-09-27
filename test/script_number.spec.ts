@@ -1,8 +1,7 @@
 import * as assert from 'assert';
 import { describe, it } from 'mocha';
-import * as scriptNumber from 'bitcoinjs-lib/src/script_number';
-import fixtures from './fixtures/script_number.json';
-import * as tools from 'uint8array-tools';
+import * as scriptNumber from '../src/script_number';
+import * as fixtures from './fixtures/script_number.json';
 
 describe('script-number', () => {
   describe('decode', () => {
@@ -20,7 +19,7 @@ describe('script-number', () => {
       it(f.number + ' returns ' + f.hex, () => {
         const actual = scriptNumber.encode(f.number);
 
-        assert.strictEqual(tools.toHex(actual), f.hex);
+        assert.strictEqual(actual.toString('hex'), f.hex);
       });
     });
   });

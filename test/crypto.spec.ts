@@ -1,14 +1,11 @@
 import * as assert from 'assert';
 import { describe, it } from 'mocha';
-import { crypto as bcrypto } from 'bitcoinjs-lib';
-import type { TaggedHashPrefix } from 'bitcoinjs-lib';
-import fixtures from './fixtures/crypto.json';
-import * as tools from 'uint8array-tools';
-import { TAGS, TAGGED_HASH_PREFIXES } from 'bitcoinjs-lib/src/crypto';
-import { sha256 } from '@noble/hashes/sha256';
+import { crypto as bcrypto, TaggedHashPrefix } from '..';
+import * as fixtures from './fixtures/crypto.json';
+import { sha256, TAGS, TAGGED_HASH_PREFIXES } from '../src/crypto';
 
 describe('crypto', () => {
-  ['hash160', 'hash256'].forEach(algorithm => {
+  ['hash160', 'hash256', 'ripemd160', 'sha1', 'sha256'].forEach(algorithm => {
     describe(algorithm, () => {
       fixtures.hashes.forEach(f => {
         const fn = (bcrypto as any)[algorithm];
@@ -16,9 +13,9 @@ describe('crypto', () => {
 
         it('returns ' + expected + ' for ' + f.hex, () => {
           const data = Buffer.from(f.hex, 'hex');
-          const actual = fn(data);
+          const actual = fn(data).toString('hex');
 
-          assert.strictEqual(tools.toHex(actual), expected);
+          assert.strictEqual(actual, expected);
         });
       });
     });
@@ -27,10 +24,10 @@ describe('crypto', () => {
   describe('taggedHash', () => {
     fixtures.taggedHash.forEach(f => {
       const bytes = Buffer.from(f.hex, 'hex');
-      const expected = f.result;
+      const expected = Buffer.from(f.result, 'hex');
       it(`returns ${f.result} for taggedHash "${f.tag}" of ${f.hex}`, () => {
         const actual = bcrypto.taggedHash(f.tag as TaggedHashPrefix, bytes);
-        assert.strictEqual(tools.toHex(actual), expected);
+        assert.strictEqual(actual.toString('hex'), expected.toString('hex'));
       });
     });
   });
@@ -39,7 +36,7 @@ describe('crypto', () => {
     const taggedHashPrefixes = Object.fromEntries(
       TAGS.map((tag: TaggedHashPrefix) => {
         const tagHash = sha256(Buffer.from(tag));
-        return [tag, tools.concat([tagHash, tagHash])];
+        return [tag, Buffer.concat([tagHash, tagHash])];
       }),
     );
     it('stored the result of operation', () => {
