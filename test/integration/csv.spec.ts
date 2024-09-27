@@ -47,6 +47,7 @@ describe('bitcoinjs-lib (transactions w/ CSV)', () => {
     interface KeyPair {
         publicKey: Buffer;
     }
+
     // IF MTP (from when confirmed) > seconds, _alice can redeem
     function csvCheckSigOutput(
         _alice: KeyPair,

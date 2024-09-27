@@ -37,6 +37,7 @@ describe('bitcoinjs-lib (transactions w/ CLTV)', () => {
     interface KeyPair {
         publicKey: Buffer;
     }
+
     function cltvCheckSigOutput(
         aQ: KeyPair,
         bQ: KeyPair,

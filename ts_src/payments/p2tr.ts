@@ -2,19 +2,19 @@ import { Buffer as NBuffer } from 'buffer';
 import { bitcoin as BITCOIN_NETWORK } from '../networks';
 import * as bscript from '../script';
 import {
-    typeforce as typef,
     isTaptree,
-    TAPLEAF_VERSION_MASK,
     stacksEqual,
+    TAPLEAF_VERSION_MASK,
+    typeforce as typef,
 } from '../types';
 import { getEccLib } from '../ecc_lib';
 import {
-    toHashTree,
-    rootHashFromPath,
     findScriptPath,
-    tapleafHash,
-    tweakKey,
     LEAF_VERSION_TAPSCRIPT,
+    rootHashFromPath,
+    tapleafHash,
+    toHashTree,
+    tweakKey,
 } from './bip341';
 import { Payment, PaymentOpts } from './index';
 import * as lazy from './lazy';

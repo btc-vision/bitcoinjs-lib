@@ -6,18 +6,19 @@
  * Support bitcoin、bitcoin testnet and bitcoin regtest.
  * @packageDocumentation
  */
-export interface Network {
-    messagePrefix: string;
-    bech32: string;
-    bip32: Bip32;
-    pubKeyHash: number;
-    scriptHash: number;
-    wif: number;
-}
 
-interface Bip32 {
+export interface Bip32 {
     public: number;
     private: number;
+}
+
+export interface Network {
+    wif: number;
+    bip32: Bip32;
+    messagePrefix: string;
+    bech32: string;
+    pubKeyHash: number;
+    scriptHash: number;
 }
 
 /**

@@ -3,6 +3,7 @@ import * as bscript from '../script';
 import { isPoint, typeforce as typef } from '../types';
 import { Payment, PaymentOpts, StackFunction } from './index';
 import * as lazy from './lazy';
+
 const OPS = bscript.OPS;
 
 // input: {signature}

@@ -8,7 +8,7 @@ import { regtestUtils } from './_regtest';
 import * as bitcoin from '../..';
 import { Taptree } from '../../src/types';
 import { LEAF_VERSION_TAPSCRIPT } from '../../src/payments/bip341';
-import { toXOnly, tapTreeToList, tapTreeFromList } from '../../src/psbt/bip371';
+import { tapTreeFromList, tapTreeToList, toXOnly } from '../../src/psbt/bip371';
 import { witnessStackToScriptWitness } from '../../src/psbt/psbtutils';
 
 const rng = require('randombytes');

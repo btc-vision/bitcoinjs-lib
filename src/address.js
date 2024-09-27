@@ -7,6 +7,15 @@ exports.toOutputScript =
     exports.fromBech32 =
     exports.fromBase58Check =
         void 0;
+/**
+ * bitcoin address decode and encode tools, include base58、bech32 and output script
+ *
+ * networks support bitcoin、bitcoin testnet and bitcoin regtest
+ *
+ * addresses support P2PKH、P2SH、P2WPKH、P2WSH、P2TR and so on
+ *
+ * @packageDocumentation
+ */
 const networks = require('./networks');
 const payments = require('./payments');
 const bscript = require('./script');

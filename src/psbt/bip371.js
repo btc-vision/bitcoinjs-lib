@@ -17,7 +17,6 @@ const transaction_1 = require('../transaction');
 const psbtutils_1 = require('./psbtutils');
 const bip341_1 = require('../payments/bip341');
 const payments_1 = require('../payments');
-const psbtutils_2 = require('./psbtutils');
 const toXOnly = pubKey => (pubKey.length === 32 ? pubKey : pubKey.slice(1, 33));
 exports.toXOnly = toXOnly;
 /**
@@ -171,7 +170,7 @@ exports.tapTreeFromList = tapTreeFromList;
 function checkTaprootInputForSigs(input, action) {
     const sigs = extractTaprootSigs(input);
     return sigs.some(sig =>
-        (0, psbtutils_2.signatureBlocksAction)(
+        (0, psbtutils_1.signatureBlocksAction)(
             sig,
             decodeSchnorrSignature,
             action,

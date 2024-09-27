@@ -67,49 +67,24 @@ const DEFAULT_OPTS = {
  *   Transaction object. Such as fee rate not being larger than maximumFeeRate etc.
  */
 class Psbt {
-    static fromBase64(data, opts = {}) {
-        const buffer = Buffer.from(data, 'base64');
-        return this.fromBuffer(buffer, opts);
-    }
-    static fromHex(data, opts = {}) {
-        const buffer = Buffer.from(data, 'hex');
-        return this.fromBuffer(buffer, opts);
-    }
-    static fromBuffer(buffer, opts = {}) {
-        const psbtBase = bip174_1.Psbt.fromBuffer(
-            buffer,
-            transactionFromBuffer,
-        );
-        const psbt = new Psbt(opts, psbtBase);
-        checkTxForDupeIns(psbt.__CACHE.__TX, psbt.__CACHE);
-        return psbt;
-    }
     constructor(opts = {}, data = new bip174_1.Psbt(new PsbtTransaction())) {
         this.data = data;
-        // set defaults
         this.opts = Object.assign({}, DEFAULT_OPTS, opts);
         this.__CACHE = {
             __NON_WITNESS_UTXO_TX_CACHE: [],
             __NON_WITNESS_UTXO_BUF_CACHE: [],
             __TX_IN_CACHE: {},
+            // @ts-expect-error no.
             __TX: this.data.globalMap.unsignedTx.tx,
-            // Psbt's predecessor (TransactionBuilder - now removed) behavior
-            // was to not confirm input values  before signing.
-            // Even though we highly encourage people to get
-            // the full parent transaction to verify values, the ability to
-            // sign non-segwit inputs without the full transaction was often
-            // requested. So the only way to activate is to use @ts-ignore.
-            // We will disable exporting the Psbt when unsafe sign is active.
-            // because it is not BIP174 compliant.
             __UNSAFE_SIGN_NONSEGWIT: false,
         };
         if (this.data.inputs.length === 0) this.setVersion(2);
-        // Make data hidden when enumerating
-        const dpew = (obj, attr, enumerable, writable) =>
+        const dpew = (obj, attr, enumerable, writable) => {
             Object.defineProperty(obj, attr, {
                 enumerable,
                 writable,
             });
+        };
         dpew(this, '__CACHE', false, true);
         dpew(this, 'opts', false, true);
     }
@@ -150,6 +125,23 @@ class Psbt {
                 address,
             };
         });
+    }
+    static fromBase64(data, opts = {}) {
+        const buffer = Buffer.from(data, 'base64');
+        return this.fromBuffer(buffer, opts);
+    }
+    static fromHex(data, opts = {}) {
+        const buffer = Buffer.from(data, 'hex');
+        return this.fromBuffer(buffer, opts);
+    }
+    static fromBuffer(buffer, opts = {}) {
+        const psbtBase = bip174_1.Psbt.fromBuffer(
+            buffer,
+            transactionFromBuffer,
+        );
+        const psbt = new Psbt(opts, psbtBase);
+        checkTxForDupeIns(psbt.__CACHE.__TX, psbt.__CACHE);
+        return psbt;
     }
     combine(...those) {
         this.data.combine(...those.map(o => o.data));
@@ -333,62 +325,6 @@ class Psbt {
             );
         throw new Error(`Cannot finalize input #${inputIndex}. Not Taproot.`);
     }
-    _finalizeInput(inputIndex, input, finalScriptsFunc = getFinalScripts) {
-        const { script, isP2SH, isP2WSH, isSegwit } = getScriptFromInput(
-            inputIndex,
-            input,
-            this.__CACHE,
-        );
-        if (!script)
-            throw new Error(`No script found for input #${inputIndex}`);
-        checkPartialSigSighashes(input);
-        const { finalScriptSig, finalScriptWitness } = finalScriptsFunc(
-            inputIndex,
-            input,
-            script,
-            isSegwit,
-            isP2SH,
-            isP2WSH,
-        );
-        if (finalScriptSig)
-            this.data.updateInput(inputIndex, { finalScriptSig });
-        if (finalScriptWitness)
-            this.data.updateInput(inputIndex, { finalScriptWitness });
-        if (!finalScriptSig && !finalScriptWitness)
-            throw new Error(`Unknown error finalizing input #${inputIndex}`);
-        this.data.clearFinalizedInput(inputIndex);
-        return this;
-    }
-    _finalizeTaprootInput(
-        inputIndex,
-        input,
-        tapLeafHashToFinalize,
-        finalScriptsFunc = bip371_1.tapScriptFinalizer,
-    ) {
-        if (!input.witnessUtxo)
-            throw new Error(
-                `Cannot finalize input #${inputIndex}. Missing withness utxo.`,
-            );
-        // Check key spend first. Increased privacy and reduced block space.
-        if (input.tapKeySig) {
-            const payment = payments.p2tr({
-                output: input.witnessUtxo.script,
-                signature: input.tapKeySig,
-            });
-            const finalScriptWitness = (0,
-            psbtutils_1.witnessStackToScriptWitness)(payment.witness);
-            this.data.updateInput(inputIndex, { finalScriptWitness });
-        } else {
-            const { finalScriptWitness } = finalScriptsFunc(
-                inputIndex,
-                input,
-                tapLeafHashToFinalize,
-            );
-            this.data.updateInput(inputIndex, { finalScriptWitness });
-        }
-        this.data.clearFinalizedInput(inputIndex);
-        return this;
-    }
     getInputType(inputIndex) {
         const input = (0, utils_1.checkForInput)(this.data.inputs, inputIndex);
         const script = getScriptFromUtxo(inputIndex, input, this.__CACHE);
@@ -451,96 +387,6 @@ class Psbt {
                 pubkey,
             );
         return this._validateSignaturesOfInput(inputIndex, validator, pubkey);
-    }
-    _validateSignaturesOfInput(inputIndex, validator, pubkey) {
-        const input = this.data.inputs[inputIndex];
-        const partialSig = (input || {}).partialSig;
-        if (!input || !partialSig || partialSig.length < 1)
-            throw new Error('No signatures to validate');
-        if (typeof validator !== 'function')
-            throw new Error('Need validator function to validate signatures');
-        const mySigs = pubkey
-            ? partialSig.filter(sig => sig.pubkey.equals(pubkey))
-            : partialSig;
-        if (mySigs.length < 1) throw new Error('No signatures for this pubkey');
-        const results = [];
-        let hashCache;
-        let scriptCache;
-        let sighashCache;
-        for (const pSig of mySigs) {
-            const sig = bscript.signature.decode(pSig.signature);
-            const { hash, script } =
-                sighashCache !== sig.hashType
-                    ? getHashForSig(
-                          inputIndex,
-                          Object.assign({}, input, {
-                              sighashType: sig.hashType,
-                          }),
-                          this.__CACHE,
-                          true,
-                      )
-                    : { hash: hashCache, script: scriptCache };
-            sighashCache = sig.hashType;
-            hashCache = hash;
-            scriptCache = script;
-            checkScriptForPubkey(pSig.pubkey, script, 'verify');
-            results.push(validator(pSig.pubkey, hash, sig.signature));
-        }
-        return results.every(res => res === true);
-    }
-    validateSignaturesOfTaprootInput(inputIndex, validator, pubkey) {
-        const input = this.data.inputs[inputIndex];
-        const tapKeySig = (input || {}).tapKeySig;
-        const tapScriptSig = (input || {}).tapScriptSig;
-        if (!input && !tapKeySig && !(tapScriptSig && !tapScriptSig.length))
-            throw new Error('No signatures to validate');
-        if (typeof validator !== 'function')
-            throw new Error('Need validator function to validate signatures');
-        pubkey = pubkey && (0, bip371_1.toXOnly)(pubkey);
-        const allHashses = pubkey
-            ? getTaprootHashesForSig(
-                  inputIndex,
-                  input,
-                  this.data.inputs,
-                  pubkey,
-                  this.__CACHE,
-              )
-            : getAllTaprootHashesForSig(
-                  inputIndex,
-                  input,
-                  this.data.inputs,
-                  this.__CACHE,
-              );
-        if (!allHashses.length)
-            throw new Error('No signatures for this pubkey');
-        const tapKeyHash = allHashses.find(h => !h.leafHash);
-        let validationResultCount = 0;
-        if (tapKeySig && tapKeyHash) {
-            const isValidTapkeySig = validator(
-                tapKeyHash.pubkey,
-                tapKeyHash.hash,
-                trimTaprootSig(tapKeySig),
-            );
-            if (!isValidTapkeySig) return false;
-            validationResultCount++;
-        }
-        if (tapScriptSig) {
-            for (const tapSig of tapScriptSig) {
-                const tapSigHash = allHashses.find(h =>
-                    tapSig.pubkey.equals(h.pubkey),
-                );
-                if (tapSigHash) {
-                    const isValidTapScriptSig = validator(
-                        tapSig.pubkey,
-                        tapSigHash.hash,
-                        trimTaprootSig(tapSig.signature),
-                    );
-                    if (!isValidTapScriptSig) return false;
-                    validationResultCount++;
-                }
-            }
-        }
-        return validationResultCount > 0;
     }
     signAllInputsHD(
         hdKeyPair,
@@ -713,6 +559,250 @@ class Psbt {
             );
         throw new Error(`Input #${inputIndex} is not of type Taproot.`);
     }
+    signInputAsync(inputIndex, keyPair, sighashTypes) {
+        return Promise.resolve().then(() => {
+            if (!keyPair || !keyPair.publicKey)
+                throw new Error('Need Signer to sign input');
+            const input = (0, utils_1.checkForInput)(
+                this.data.inputs,
+                inputIndex,
+            );
+            if ((0, bip371_1.isTaprootInput)(input))
+                return this._signTaprootInputAsync(
+                    inputIndex,
+                    input,
+                    keyPair,
+                    undefined,
+                    sighashTypes,
+                );
+            return this._signInputAsync(inputIndex, keyPair, sighashTypes);
+        });
+    }
+    signTaprootInputAsync(inputIndex, keyPair, tapLeafHash, sighashTypes) {
+        return Promise.resolve().then(() => {
+            if (!keyPair || !keyPair.publicKey)
+                throw new Error('Need Signer to sign input');
+            const input = (0, utils_1.checkForInput)(
+                this.data.inputs,
+                inputIndex,
+            );
+            if ((0, bip371_1.isTaprootInput)(input))
+                return this._signTaprootInputAsync(
+                    inputIndex,
+                    input,
+                    keyPair,
+                    tapLeafHash,
+                    sighashTypes,
+                );
+            throw new Error(`Input #${inputIndex} is not of type Taproot.`);
+        });
+    }
+    toBuffer() {
+        checkCache(this.__CACHE);
+        return this.data.toBuffer();
+    }
+    toHex() {
+        checkCache(this.__CACHE);
+        return this.data.toHex();
+    }
+    toBase64() {
+        checkCache(this.__CACHE);
+        return this.data.toBase64();
+    }
+    updateGlobal(updateData) {
+        this.data.updateGlobal(updateData);
+        return this;
+    }
+    updateInput(inputIndex, updateData) {
+        if (updateData.witnessScript)
+            checkInvalidP2WSH(updateData.witnessScript);
+        (0, bip371_1.checkTaprootInputFields)(
+            this.data.inputs[inputIndex],
+            updateData,
+            'updateInput',
+        );
+        this.data.updateInput(inputIndex, updateData);
+        if (updateData.nonWitnessUtxo) {
+            addNonWitnessTxCache(
+                this.__CACHE,
+                this.data.inputs[inputIndex],
+                inputIndex,
+            );
+        }
+        return this;
+    }
+    updateOutput(outputIndex, updateData) {
+        const outputData = this.data.outputs[outputIndex];
+        (0, bip371_1.checkTaprootOutputFields)(
+            outputData,
+            updateData,
+            'updateOutput',
+        );
+        this.data.updateOutput(outputIndex, updateData);
+        return this;
+    }
+    addUnknownKeyValToGlobal(keyVal) {
+        this.data.addUnknownKeyValToGlobal(keyVal);
+        return this;
+    }
+    addUnknownKeyValToInput(inputIndex, keyVal) {
+        this.data.addUnknownKeyValToInput(inputIndex, keyVal);
+        return this;
+    }
+    addUnknownKeyValToOutput(outputIndex, keyVal) {
+        this.data.addUnknownKeyValToOutput(outputIndex, keyVal);
+        return this;
+    }
+    clearFinalizedInput(inputIndex) {
+        this.data.clearFinalizedInput(inputIndex);
+        return this;
+    }
+    _finalizeInput(inputIndex, input, finalScriptsFunc = getFinalScripts) {
+        const { script, isP2SH, isP2WSH, isSegwit } = getScriptFromInput(
+            inputIndex,
+            input,
+            this.__CACHE,
+        );
+        if (!script)
+            throw new Error(`No script found for input #${inputIndex}`);
+        checkPartialSigSighashes(input);
+        const { finalScriptSig, finalScriptWitness } = finalScriptsFunc(
+            inputIndex,
+            input,
+            script,
+            isSegwit,
+            isP2SH,
+            isP2WSH,
+        );
+        if (finalScriptSig)
+            this.data.updateInput(inputIndex, { finalScriptSig });
+        if (finalScriptWitness)
+            this.data.updateInput(inputIndex, { finalScriptWitness });
+        if (!finalScriptSig && !finalScriptWitness)
+            throw new Error(`Unknown error finalizing input #${inputIndex}`);
+        this.data.clearFinalizedInput(inputIndex);
+        return this;
+    }
+    _finalizeTaprootInput(
+        inputIndex,
+        input,
+        tapLeafHashToFinalize,
+        finalScriptsFunc = bip371_1.tapScriptFinalizer,
+    ) {
+        if (!input.witnessUtxo)
+            throw new Error(
+                `Cannot finalize input #${inputIndex}. Missing withness utxo.`,
+            );
+        // Check key spend first. Increased privacy and reduced block space.
+        if (input.tapKeySig) {
+            const payment = payments.p2tr({
+                output: input.witnessUtxo.script,
+                signature: input.tapKeySig,
+            });
+            const finalScriptWitness = (0,
+            psbtutils_1.witnessStackToScriptWitness)(payment.witness);
+            this.data.updateInput(inputIndex, { finalScriptWitness });
+        } else {
+            const { finalScriptWitness } = finalScriptsFunc(
+                inputIndex,
+                input,
+                tapLeafHashToFinalize,
+            );
+            this.data.updateInput(inputIndex, { finalScriptWitness });
+        }
+        this.data.clearFinalizedInput(inputIndex);
+        return this;
+    }
+    _validateSignaturesOfInput(inputIndex, validator, pubkey) {
+        const input = this.data.inputs[inputIndex];
+        const partialSig = (input || {}).partialSig;
+        if (!input || !partialSig || partialSig.length < 1)
+            throw new Error('No signatures to validate');
+        if (typeof validator !== 'function')
+            throw new Error('Need validator function to validate signatures');
+        const mySigs = pubkey
+            ? partialSig.filter(sig => sig.pubkey.equals(pubkey))
+            : partialSig;
+        if (mySigs.length < 1) throw new Error('No signatures for this pubkey');
+        const results = [];
+        let hashCache;
+        let scriptCache;
+        let sighashCache;
+        for (const pSig of mySigs) {
+            const sig = bscript.signature.decode(pSig.signature);
+            const { hash, script } =
+                sighashCache !== sig.hashType
+                    ? getHashForSig(
+                          inputIndex,
+                          Object.assign({}, input, {
+                              sighashType: sig.hashType,
+                          }),
+                          this.__CACHE,
+                          true,
+                      )
+                    : { hash: hashCache, script: scriptCache };
+            sighashCache = sig.hashType;
+            hashCache = hash;
+            scriptCache = script;
+            checkScriptForPubkey(pSig.pubkey, script, 'verify');
+            results.push(validator(pSig.pubkey, hash, sig.signature));
+        }
+        return results.every(res => res === true);
+    }
+    validateSignaturesOfTaprootInput(inputIndex, validator, pubkey) {
+        const input = this.data.inputs[inputIndex];
+        const tapKeySig = (input || {}).tapKeySig;
+        const tapScriptSig = (input || {}).tapScriptSig;
+        if (!input && !tapKeySig && !(tapScriptSig && !tapScriptSig.length))
+            throw new Error('No signatures to validate');
+        if (typeof validator !== 'function')
+            throw new Error('Need validator function to validate signatures');
+        pubkey = pubkey && (0, bip371_1.toXOnly)(pubkey);
+        const allHashses = pubkey
+            ? getTaprootHashesForSig(
+                  inputIndex,
+                  input,
+                  this.data.inputs,
+                  pubkey,
+                  this.__CACHE,
+              )
+            : getAllTaprootHashesForSig(
+                  inputIndex,
+                  input,
+                  this.data.inputs,
+                  this.__CACHE,
+              );
+        if (!allHashses.length)
+            throw new Error('No signatures for this pubkey');
+        const tapKeyHash = allHashses.find(h => !h.leafHash);
+        let validationResultCount = 0;
+        if (tapKeySig && tapKeyHash) {
+            const isValidTapkeySig = validator(
+                tapKeyHash.pubkey,
+                tapKeyHash.hash,
+                trimTaprootSig(tapKeySig),
+            );
+            if (!isValidTapkeySig) return false;
+            validationResultCount++;
+        }
+        if (tapScriptSig) {
+            for (const tapSig of tapScriptSig) {
+                const tapSigHash = allHashses.find(h =>
+                    tapSig.pubkey.equals(h.pubkey),
+                );
+                if (tapSigHash) {
+                    const isValidTapScriptSig = validator(
+                        tapSig.pubkey,
+                        tapSigHash.hash,
+                        trimTaprootSig(tapSig.signature),
+                    );
+                    if (!isValidTapScriptSig) return false;
+                    validationResultCount++;
+                }
+            }
+        }
+        return validationResultCount > 0;
+    }
     _signInput(
         inputIndex,
         keyPair,
@@ -776,44 +866,6 @@ class Psbt {
             this.data.updateInput(inputIndex, { tapScriptSig });
         }
         return this;
-    }
-    signInputAsync(inputIndex, keyPair, sighashTypes) {
-        return Promise.resolve().then(() => {
-            if (!keyPair || !keyPair.publicKey)
-                throw new Error('Need Signer to sign input');
-            const input = (0, utils_1.checkForInput)(
-                this.data.inputs,
-                inputIndex,
-            );
-            if ((0, bip371_1.isTaprootInput)(input))
-                return this._signTaprootInputAsync(
-                    inputIndex,
-                    input,
-                    keyPair,
-                    undefined,
-                    sighashTypes,
-                );
-            return this._signInputAsync(inputIndex, keyPair, sighashTypes);
-        });
-    }
-    signTaprootInputAsync(inputIndex, keyPair, tapLeafHash, sighashTypes) {
-        return Promise.resolve().then(() => {
-            if (!keyPair || !keyPair.publicKey)
-                throw new Error('Need Signer to sign input');
-            const input = (0, utils_1.checkForInput)(
-                this.data.inputs,
-                inputIndex,
-            );
-            if ((0, bip371_1.isTaprootInput)(input))
-                return this._signTaprootInputAsync(
-                    inputIndex,
-                    input,
-                    keyPair,
-                    tapLeafHash,
-                    sighashTypes,
-                );
-            throw new Error(`Input #${inputIndex} is not of type Taproot.`);
-        });
     }
     _signInputAsync(
         inputIndex,
@@ -921,66 +973,6 @@ class Psbt {
                 )}`,
             );
         return hashesForSig;
-    }
-    toBuffer() {
-        checkCache(this.__CACHE);
-        return this.data.toBuffer();
-    }
-    toHex() {
-        checkCache(this.__CACHE);
-        return this.data.toHex();
-    }
-    toBase64() {
-        checkCache(this.__CACHE);
-        return this.data.toBase64();
-    }
-    updateGlobal(updateData) {
-        this.data.updateGlobal(updateData);
-        return this;
-    }
-    updateInput(inputIndex, updateData) {
-        if (updateData.witnessScript)
-            checkInvalidP2WSH(updateData.witnessScript);
-        (0, bip371_1.checkTaprootInputFields)(
-            this.data.inputs[inputIndex],
-            updateData,
-            'updateInput',
-        );
-        this.data.updateInput(inputIndex, updateData);
-        if (updateData.nonWitnessUtxo) {
-            addNonWitnessTxCache(
-                this.__CACHE,
-                this.data.inputs[inputIndex],
-                inputIndex,
-            );
-        }
-        return this;
-    }
-    updateOutput(outputIndex, updateData) {
-        const outputData = this.data.outputs[outputIndex];
-        (0, bip371_1.checkTaprootOutputFields)(
-            outputData,
-            updateData,
-            'updateOutput',
-        );
-        this.data.updateOutput(outputIndex, updateData);
-        return this;
-    }
-    addUnknownKeyValToGlobal(keyVal) {
-        this.data.addUnknownKeyValToGlobal(keyVal);
-        return this;
-    }
-    addUnknownKeyValToInput(inputIndex, keyVal) {
-        this.data.addUnknownKeyValToInput(inputIndex, keyVal);
-        return this;
-    }
-    addUnknownKeyValToOutput(outputIndex, keyVal) {
-        this.data.addUnknownKeyValToOutput(outputIndex, keyVal);
-        return this;
-    }
-    clearFinalizedInput(inputIndex) {
-        this.data.clearFinalizedInput(inputIndex);
-        return this;
     }
 }
 exports.Psbt = Psbt;
@@ -1540,14 +1532,13 @@ function getSignersFromHD(inputIndex, inputs, hdKeyPair) {
             'Need one bip32Derivation masterFingerprint to match the HDSigner fingerprint',
         );
     }
-    const signers = myDerivations.map(bipDv => {
+    return myDerivations.map(bipDv => {
         const node = hdKeyPair.derivePath(bipDv.path);
         if (!bipDv.pubkey.equals(node.publicKey)) {
             throw new Error('pubkey did not match bip32Derivation');
         }
         return node;
     });
-    return signers;
 }
 function getSortedSigs(script, partialSig) {
     const p2ms = payments.p2ms({ output: script });

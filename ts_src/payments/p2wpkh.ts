@@ -5,6 +5,7 @@ import { isPoint, typeforce as typef } from '../types';
 import { Payment, PaymentOpts } from './index';
 import * as lazy from './lazy';
 import { bech32 } from 'bech32';
+
 const OPS = bscript.OPS;
 
 const EMPTY_BUFFER = Buffer.alloc(0);

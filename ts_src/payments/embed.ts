@@ -1,6 +1,6 @@
 import { bitcoin as BITCOIN_NETWORK } from '../networks';
 import * as bscript from '../script';
-import { typeforce as typef, stacksEqual } from '../types';
+import { stacksEqual, typeforce as typef } from '../types';
 import { Payment, PaymentOpts, Stack } from './index';
 import * as lazy from './lazy';
 

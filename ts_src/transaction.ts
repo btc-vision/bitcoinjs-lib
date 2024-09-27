@@ -75,6 +75,10 @@ export class Transaction {
     static readonly SIGHASH_INPUT_MASK = 0x80;
     static readonly ADVANCED_TRANSACTION_MARKER = 0x00;
     static readonly ADVANCED_TRANSACTION_FLAG = 0x01;
+    version: number = 1;
+    locktime: number = 0;
+    ins: Input[] = [];
+    outs: Output[] = [];
 
     static fromBuffer(buffer: Buffer, _NO_STRICT?: boolean): Transaction {
         const bufferReader = new BufferReader(buffer);
@@ -144,11 +148,6 @@ export class Transaction {
         }
         return true;
     }
-
-    version: number = 1;
-    locktime: number = 0;
-    ins: Input[] = [];
-    outs: Output[] = [];
 
     isCoinbase(): boolean {
         return (

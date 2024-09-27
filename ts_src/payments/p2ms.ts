@@ -1,8 +1,9 @@
 import { bitcoin as BITCOIN_NETWORK } from '../networks';
 import * as bscript from '../script';
-import { isPoint, typeforce as typef, stacksEqual } from '../types';
+import { isPoint, stacksEqual, typeforce as typef } from '../types';
 import { Payment, PaymentOpts, Stack } from './index';
 import * as lazy from './lazy';
+
 const OPS = bscript.OPS;
 
 const OP_INT_BASE = OPS.OP_RESERVED; // OP_1 - 1
@@ -52,6 +53,7 @@ export function p2ms(a: Payment, opts?: PaymentOpts): Payment {
 
     let chunks: Stack = [];
     let decoded = false;
+
     function decode(output: Buffer | Stack): void {
         if (decoded) return;
         decoded = true;

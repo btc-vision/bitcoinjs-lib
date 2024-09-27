@@ -1,10 +1,11 @@
 import * as bcrypto from '../crypto';
 import { bitcoin as BITCOIN_NETWORK } from '../networks';
 import * as bscript from '../script';
-import { isPoint, typeforce as typef, stacksEqual } from '../types';
+import { isPoint, stacksEqual, typeforce as typef } from '../types';
 import { Payment, PaymentOpts, StackElement, StackFunction } from './index';
 import * as lazy from './lazy';
 import { bech32 } from 'bech32';
+
 const OPS = bscript.OPS;
 
 const EMPTY_BUFFER = Buffer.alloc(0);

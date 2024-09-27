@@ -7,17 +7,16 @@ import { describe, it } from 'mocha';
 
 import { convertScriptTree } from './payments.utils';
 import { LEAF_VERSION_TAPSCRIPT } from '../src/payments/bip341';
-import { tapTreeToList, tapTreeFromList } from '../src/psbt/bip371';
+import { tapTreeFromList, tapTreeToList } from '../src/psbt/bip371';
 import { Taptree } from '../src/types';
 import { initEccLib } from '../src';
-
-const bip32 = BIP32Factory(ecc);
-const ECPair = ECPairFactory(ecc);
-
 import { networks as NETWORKS, payments, Psbt, Signer, SignerAsync } from '..';
 
 import * as preFixtures from './fixtures/psbt.json';
 import * as taprootFixtures from './fixtures/p2tr.json';
+
+const bip32 = BIP32Factory(ecc);
+const ECPair = ECPairFactory(ecc);
 
 const validator = (
     pubkey: Buffer,
@@ -49,7 +48,7 @@ const upperCaseFirstLetter = (str: string): string =>
     str.replace(/^./, s => s.toUpperCase());
 
 const toAsyncSigner = (signer: Signer): SignerAsync => {
-    const ret: SignerAsync = {
+    return {
         publicKey: signer.publicKey,
         sign: (hash: Buffer, lowerR: boolean | undefined): Promise<Buffer> => {
             return new Promise((resolve, rejects): void => {
@@ -64,10 +63,9 @@ const toAsyncSigner = (signer: Signer): SignerAsync => {
             });
         },
     };
-    return ret;
 };
 const failedAsyncSigner = (publicKey: Buffer): SignerAsync => {
-    return {
+    return <SignerAsync>{
         publicKey,
         sign: (__: Buffer): Promise<Buffer> => {
             return new Promise((_, reject): void => {
@@ -782,6 +780,7 @@ describe(`Psbt`, () => {
             const type = psbt.getInputType(0);
             assert.strictEqual(type, expectedType, 'incorrect input type');
         }
+
         [
             {
                 innerScript: p2pkhPub,

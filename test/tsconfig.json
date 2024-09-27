@@ -5,8 +5,14 @@
         "outDir": "../",
         "declaration": false,
         "rootDir": "../",
-        "rootDirs": ["../src", "../types"],
-        "types": ["node", "mocha"],
+        "rootDirs": [
+            "../src",
+            "../types"
+        ],
+        "types": [
+            "node",
+            "mocha"
+        ],
         "allowJs": false,
         "resolveJsonModule": true,
         "strict": true,
@@ -22,9 +28,15 @@
         "noUnusedParameters": true,
         "baseUrl": ".",
         "paths": {
-            "../src/*": ["../ts_src/*"]
+            "../src/*": [
+                "../ts_src/*"
+            ]
         }
     },
-    "include": ["./**/*.ts"],
-    "exclude": ["../ts_src/**/*.ts"]
+    "include": [
+        "./**/*.ts"
+    ],
+    "exclude": [
+        "../ts_src/**/*.ts"
+    ]
 }

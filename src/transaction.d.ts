@@ -24,13 +24,13 @@ export declare class Transaction {
     static readonly SIGHASH_INPUT_MASK = 128;
     static readonly ADVANCED_TRANSACTION_MARKER = 0;
     static readonly ADVANCED_TRANSACTION_FLAG = 1;
-    static fromBuffer(buffer: Buffer, _NO_STRICT?: boolean): Transaction;
-    static fromHex(hex: string): Transaction;
-    static isCoinbaseHash(buffer: Buffer): boolean;
     version: number;
     locktime: number;
     ins: Input[];
     outs: Output[];
+    static fromBuffer(buffer: Buffer, _NO_STRICT?: boolean): Transaction;
+    static fromHex(hex: string): Transaction;
+    static isCoinbaseHash(buffer: Buffer): boolean;
     isCoinbase(): boolean;
     addInput(hash: Buffer, index: number, sequence?: number, scriptSig?: Buffer): number;
     addOutput(scriptPubKey: Buffer, value: number): number;

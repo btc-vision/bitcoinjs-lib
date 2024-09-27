@@ -3,7 +3,7 @@ import { getEccLib } from '../ecc_lib';
 import * as bcrypto from '../crypto';
 
 import { varuint } from '../bufferutils';
-import { Tapleaf, Taptree, isTapleaf } from '../types';
+import { isTapleaf, Tapleaf, Taptree } from '../types';
 
 export const LEAF_VERSION_TAPSCRIPT = 0xc0;
 export const MAX_TAPTREE_DEPTH = 128;

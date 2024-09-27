@@ -5,6 +5,7 @@ import { isPoint, typeforce as typef } from '../types';
 import { Payment, PaymentOpts, StackFunction } from './index';
 import * as lazy from './lazy';
 import * as bs58check from 'bs58check';
+
 const OPS = bscript.OPS;
 
 // input: {signature} {pubkey}

@@ -13,14 +13,17 @@ function fromHex(x: string | string[]): Buffer | Buffer[] {
     if (Array.isArray(x)) return x.map(fromHex) as Buffer[];
     return x;
 }
+
 function tryASM(x: Buffer): string {
     if (Buffer.isBuffer(x)) return bscript.toASM(x);
     return x;
 }
+
 function asmToBuffer(x: string): Buffer {
     if (x === '') return Buffer.alloc(0);
     return bscript.fromASM(x);
 }
+
 function carryOver(a: any, b: any): void {
     for (const k in b) {
         if (!k) continue;

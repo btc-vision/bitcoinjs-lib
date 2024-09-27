@@ -7,11 +7,11 @@
  *
  * @packageDocumentation
  */
-import { Network } from './networks';
 import * as networks from './networks';
+import { Network } from './networks';
 import * as payments from './payments';
 import * as bscript from './script';
-import { typeforce, tuple, Hash160bit, UInt8 } from './types';
+import { Hash160bit, tuple, typeforce, UInt8 } from './types';
 import { bech32, bech32m } from 'bech32';
 import * as bs58check from 'bs58check';
 

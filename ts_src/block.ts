@@ -8,6 +8,7 @@ import * as bcrypto from './crypto';
 import { fastMerkleRoot } from './merkle';
 import { Transaction } from './transaction';
 import * as types from './types';
+
 const { typeforce } = types;
 
 const errorMerkleNoTxes = new TypeError(
@@ -18,6 +19,15 @@ const errorWitnessNotSegwit = new TypeError(
 );
 
 export class Block {
+    version: number = 1;
+    prevHash?: Buffer = undefined;
+    merkleRoot?: Buffer = undefined;
+    timestamp: number = 0;
+    witnessCommit?: Buffer = undefined;
+    bits: number = 0;
+    nonce: number = 0;
+    transactions?: Transaction[] = undefined;
+
     static fromBuffer(buffer: Buffer): Block {
         if (buffer.length < 80)
             throw new Error('Buffer too small (< 80 bytes)');
@@ -91,15 +101,6 @@ export class Block {
               )
             : rootHash;
     }
-
-    version: number = 1;
-    prevHash?: Buffer = undefined;
-    merkleRoot?: Buffer = undefined;
-    timestamp: number = 0;
-    witnessCommit?: Buffer = undefined;
-    bits: number = 0;
-    nonce: number = 0;
-    transactions?: Transaction[] = undefined;
 
     getWitnessCommit(): Buffer | null {
         if (!txesHaveWitnessCommit(this.transactions!)) return null;

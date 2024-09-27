@@ -1,10 +1,6 @@
 /// <reference types="node" />
 import { Transaction } from './transaction';
 export declare class Block {
-    static fromBuffer(buffer: Buffer): Block;
-    static fromHex(hex: string): Block;
-    static calculateTarget(bits: number): Buffer;
-    static calculateMerkleRoot(transactions: Transaction[], forWitness?: boolean): Buffer;
     version: number;
     prevHash?: Buffer;
     merkleRoot?: Buffer;
@@ -13,6 +9,10 @@ export declare class Block {
     bits: number;
     nonce: number;
     transactions?: Transaction[];
+    static fromBuffer(buffer: Buffer): Block;
+    static fromHex(hex: string): Block;
+    static calculateTarget(bits: number): Buffer;
+    static calculateMerkleRoot(transactions: Transaction[], forWitness?: boolean): Buffer;
     getWitnessCommit(): Buffer | null;
     hasWitnessCommit(): boolean;
     hasWitness(): boolean;

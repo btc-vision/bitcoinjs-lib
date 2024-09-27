@@ -1,6 +1,8 @@
 import * as types from './types';
-const { typeforce } = types;
 import * as varuint from 'varuint-bitcoin';
+
+const { typeforce } = types;
+
 export { varuint };
 
 // https://github.com/feross/buffer/blob/master/index.js#L1127
@@ -73,12 +75,12 @@ export function cloneBuffer(buffer: Buffer): Buffer {
  * Helper class for serialization of bitcoin data types into a pre-allocated buffer.
  */
 export class BufferWriter {
-    static withCapacity(size: number): BufferWriter {
-        return new BufferWriter(Buffer.alloc(size));
-    }
-
     constructor(public buffer: Buffer, public offset: number = 0) {
         typeforce(types.tuple(types.Buffer, types.UInt32), [buffer, offset]);
+    }
+
+    static withCapacity(size: number): BufferWriter {
+        return new BufferWriter(Buffer.alloc(size));
     }
 
     writeUInt8(i: number): void {

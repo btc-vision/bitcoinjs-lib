@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import { describe, it } from 'mocha';
 import { crypto as bcrypto, TaggedHashPrefix } from '..';
 import * as fixtures from './fixtures/crypto.json';
-import { sha256, TAGS, TAGGED_HASH_PREFIXES } from '../src/crypto';
+import { sha256, TAGGED_HASH_PREFIXES, TAGS } from '../src/crypto';
 
 describe('crypto', () => {
     ['hash160', 'hash256', 'ripemd160', 'sha1', 'sha256'].forEach(algorithm => {

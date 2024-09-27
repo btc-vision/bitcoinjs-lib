@@ -4,6 +4,7 @@ import * as bufferutils from '../src/bufferutils';
 import { BufferReader, BufferWriter } from '../src/bufferutils';
 
 import * as fixtures from './fixtures/bufferutils.json';
+
 const varuint = require('varuint-bitcoin');
 
 describe('bufferutils', () => {

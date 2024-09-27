@@ -24,8 +24,8 @@ export declare function cloneBuffer(buffer: Buffer): Buffer;
 export declare class BufferWriter {
     buffer: Buffer;
     offset: number;
-    static withCapacity(size: number): BufferWriter;
     constructor(buffer: Buffer, offset?: number);
+    static withCapacity(size: number): BufferWriter;
     writeUInt8(i: number): void;
     writeInt32(i: number): void;
     writeUInt32(i: number): void;

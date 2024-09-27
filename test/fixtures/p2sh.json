@@ -420,27 +420,55 @@
                 "output",
                 "hash",
                 "redeem.output",
-                ["input", "witness"]
+                [
+                    "input",
+                    "witness"
+                ]
             ],
             "hash": [
                 "address",
                 "output",
                 "hash",
                 "redeem.output",
-                ["input", "witness"]
+                [
+                    "input",
+                    "witness"
+                ]
             ],
             "output": [
                 "address",
                 "output",
                 "hash",
                 "redeem.output",
-                ["input", "witness"]
+                [
+                    "input",
+                    "witness"
+                ]
             ],
-            "redeem.output": [["input", "witness"]],
-            "redeem.input": [["input", "witness"]],
-            "redeem.witness": [["input", "witness"]],
-            "input": ["redeem"],
-            "witness": ["redeem"]
+            "redeem.output": [
+                [
+                    "input",
+                    "witness"
+                ]
+            ],
+            "redeem.input": [
+                [
+                    "input",
+                    "witness"
+                ]
+            ],
+            "redeem.witness": [
+                [
+                    "input",
+                    "witness"
+                ]
+            ],
+            "input": [
+                "redeem"
+            ],
+            "witness": [
+                "redeem"
+            ]
         },
         "details": [
             {

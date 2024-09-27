@@ -4,45 +4,49 @@ import {
     Bip32Derivation,
     KeyValue,
     PartialSig,
+    PsbtGlobal,
     PsbtGlobalUpdate,
     PsbtInput,
     PsbtInputUpdate,
     PsbtOutput,
     PsbtOutputUpdate,
-    Transaction as ITransaction,
-    TransactionFromBuffer,
     TapKeySig,
     TapScriptSig,
+    Transaction as ITransaction,
+    TransactionFromBuffer,
 } from 'bip174/src/lib/interfaces';
 import { checkForInput, checkForOutput } from 'bip174/src/lib/utils';
 import { fromOutputScript, toOutputScript } from './address';
 import { cloneBuffer, reverseBuffer } from './bufferutils';
 import { bitcoin as btcNetwork, Network } from './networks';
 import * as payments from './payments';
+import { Payment, PaymentOpts } from './payments';
 import { tapleafHash } from './payments/bip341';
 import * as bscript from './script';
 import { Output, Transaction } from './transaction';
 import {
-    toXOnly,
-    tapScriptFinalizer,
-    serializeTaprootSignature,
-    isTaprootInput,
     checkTaprootInputFields,
-    checkTaprootOutputFields,
     checkTaprootInputForSigs,
+    checkTaprootOutputFields,
+    isTaprootInput,
+    serializeTaprootSignature,
+    tapScriptFinalizer,
+    toXOnly,
 } from './psbt/bip371';
 import {
-    witnessStackToScriptWitness,
     checkInputForSig,
-    pubkeyInScript,
     isP2MS,
     isP2PK,
     isP2PKH,
-    isP2WPKH,
-    isP2WSHScript,
     isP2SHScript,
     isP2TR,
+    isP2WPKH,
+    isP2WSHScript,
+    pubkeyInScript,
+    witnessStackToScriptWitness,
 } from './psbt/psbtutils';
+import { BIP32Interface } from 'bip32';
+import { ECPairInterface } from 'ecpair';
 
 export interface TransactionInput {
     hash: string | Buffer;
@@ -90,6 +94,7 @@ const DEFAULT_OPTS: PsbtOpts = {
 // Not a breaking change.
 export interface PsbtBaseExtended extends Omit<PsbtBase, 'inputs'> {
     inputs: PsbtInput[];
+    globalMap: PsbtGlobal;
 }
 
 /**
@@ -130,23 +135,6 @@ export interface PsbtBaseExtended extends Omit<PsbtBase, 'inputs'> {
  *   Transaction object. Such as fee rate not being larger than maximumFeeRate etc.
  */
 export class Psbt {
-    static fromBase64(data: string, opts: PsbtOptsOptional = {}): Psbt {
-        const buffer = Buffer.from(data, 'base64');
-        return this.fromBuffer(buffer, opts);
-    }
-
-    static fromHex(data: string, opts: PsbtOptsOptional = {}): Psbt {
-        const buffer = Buffer.from(data, 'hex');
-        return this.fromBuffer(buffer, opts);
-    }
-
-    static fromBuffer(buffer: Buffer, opts: PsbtOptsOptional = {}): Psbt {
-        const psbtBase = PsbtBase.fromBuffer(buffer, transactionFromBuffer);
-        const psbt = new Psbt(opts, psbtBase);
-        checkTxForDupeIns(psbt.__CACHE.__TX, psbt.__CACHE);
-        return psbt;
-    }
-
     private readonly __CACHE: PsbtCache;
     private readonly opts: PsbtOpts;
 
@@ -154,36 +142,29 @@ export class Psbt {
         opts: PsbtOptsOptional = {},
         public data: PsbtBaseExtended = new PsbtBase(new PsbtTransaction()),
     ) {
-        // set defaults
         this.opts = Object.assign({}, DEFAULT_OPTS, opts);
         this.__CACHE = {
             __NON_WITNESS_UTXO_TX_CACHE: [],
             __NON_WITNESS_UTXO_BUF_CACHE: [],
             __TX_IN_CACHE: {},
-            __TX: (this.data.globalMap.unsignedTx as PsbtTransaction).tx,
-            // Psbt's predecessor (TransactionBuilder - now removed) behavior
-            // was to not confirm input values  before signing.
-            // Even though we highly encourage people to get
-            // the full parent transaction to verify values, the ability to
-            // sign non-segwit inputs without the full transaction was often
-            // requested. So the only way to activate is to use @ts-ignore.
-            // We will disable exporting the Psbt when unsafe sign is active.
-            // because it is not BIP174 compliant.
+            // @ts-expect-error no.
+            __TX: this.data.globalMap.unsignedTx.tx, // Now TypeScript knows unsignedTx is a PsbtTransaction
             __UNSAFE_SIGN_NONSEGWIT: false,
         };
         if (this.data.inputs.length === 0) this.setVersion(2);
 
-        // Make data hidden when enumerating
-        const dpew = (
-            obj: any,
+        const dpew = <T>(
+            obj: T,
             attr: string,
             enumerable: boolean,
             writable: boolean,
-        ): any =>
+        ): void => {
             Object.defineProperty(obj, attr, {
                 enumerable,
                 writable,
             });
+        };
+
         dpew(this, '__CACHE', false, true);
         dpew(this, 'opts', false, true);
     }
@@ -228,6 +209,23 @@ export class Psbt {
                 address,
             };
         });
+    }
+
+    static fromBase64(data: string, opts: PsbtOptsOptional = {}): Psbt {
+        const buffer = Buffer.from(data, 'base64');
+        return this.fromBuffer(buffer, opts);
+    }
+
+    static fromHex(data: string, opts: PsbtOptsOptional = {}): Psbt {
+        const buffer = Buffer.from(data, 'hex');
+        return this.fromBuffer(buffer, opts);
+    }
+
+    static fromBuffer(buffer: Buffer, opts: PsbtOptsOptional = {}): Psbt {
+        const psbtBase = PsbtBase.fromBuffer(buffer, transactionFromBuffer);
+        const psbt = new Psbt(opts, psbtBase);
+        checkTxForDupeIns(psbt.__CACHE.__TX, psbt.__CACHE);
+        return psbt;
     }
 
     combine(...those: Psbt[]): this {
@@ -439,6 +437,409 @@ export class Psbt {
         throw new Error(`Cannot finalize input #${inputIndex}. Not Taproot.`);
     }
 
+    getInputType(inputIndex: number): AllScriptType {
+        const input = checkForInput(this.data.inputs, inputIndex);
+        const script = getScriptFromUtxo(inputIndex, input, this.__CACHE);
+        const result = getMeaningfulScript(
+            script,
+            inputIndex,
+            'input',
+            input.redeemScript ||
+                redeemFromFinalScriptSig(input.finalScriptSig),
+            input.witnessScript ||
+                redeemFromFinalWitnessScript(input.finalScriptWitness),
+        );
+        const type = result.type === 'raw' ? '' : result.type + '-';
+        const mainType = classifyScript(result.meaningfulScript);
+        return (type + mainType) as AllScriptType;
+    }
+
+    inputHasPubkey(inputIndex: number, pubkey: Buffer): boolean {
+        const input = checkForInput(this.data.inputs, inputIndex);
+        return pubkeyInInput(pubkey, input, inputIndex, this.__CACHE);
+    }
+
+    inputHasHDKey(inputIndex: number, root: HDSigner): boolean {
+        const input = checkForInput(this.data.inputs, inputIndex);
+        const derivationIsMine = bip32DerivationIsMine(root);
+        return (
+            !!input.bip32Derivation &&
+            input.bip32Derivation.some(derivationIsMine)
+        );
+    }
+
+    outputHasPubkey(outputIndex: number, pubkey: Buffer): boolean {
+        const output = checkForOutput(this.data.outputs, outputIndex);
+        return pubkeyInOutput(pubkey, output, outputIndex, this.__CACHE);
+    }
+
+    outputHasHDKey(outputIndex: number, root: HDSigner): boolean {
+        const output = checkForOutput(this.data.outputs, outputIndex);
+        const derivationIsMine = bip32DerivationIsMine(root);
+        return (
+            !!output.bip32Derivation &&
+            output.bip32Derivation.some(derivationIsMine)
+        );
+    }
+
+    validateSignaturesOfAllInputs(validator: ValidateSigFunction): boolean {
+        checkForInput(this.data.inputs, 0); // making sure we have at least one
+        const results = range(this.data.inputs.length).map(idx =>
+            this.validateSignaturesOfInput(idx, validator),
+        );
+        return results.reduce((final, res) => res === true && final, true);
+    }
+
+    validateSignaturesOfInput(
+        inputIndex: number,
+        validator: ValidateSigFunction,
+        pubkey?: Buffer,
+    ): boolean {
+        const input = this.data.inputs[inputIndex];
+        if (isTaprootInput(input))
+            return this.validateSignaturesOfTaprootInput(
+                inputIndex,
+                validator,
+                pubkey,
+            );
+
+        return this._validateSignaturesOfInput(inputIndex, validator, pubkey);
+    }
+
+    signAllInputsHD(
+        hdKeyPair: HDSigner,
+        sighashTypes: number[] = [Transaction.SIGHASH_ALL],
+    ): this {
+        if (!hdKeyPair || !hdKeyPair.publicKey || !hdKeyPair.fingerprint) {
+            throw new Error('Need HDSigner to sign input');
+        }
+
+        const results: boolean[] = [];
+        for (const i of range(this.data.inputs.length)) {
+            try {
+                this.signInputHD(i, hdKeyPair, sighashTypes);
+                results.push(true);
+            } catch (err) {
+                results.push(false);
+            }
+        }
+        if (results.every(v => v === false)) {
+            throw new Error('No inputs were signed');
+        }
+        return this;
+    }
+
+    signAllInputsHDAsync(
+        hdKeyPair: HDSigner | HDSignerAsync,
+        sighashTypes: number[] = [Transaction.SIGHASH_ALL],
+    ): Promise<void> {
+        return new Promise((resolve, reject): any => {
+            if (!hdKeyPair || !hdKeyPair.publicKey || !hdKeyPair.fingerprint) {
+                return reject(new Error('Need HDSigner to sign input'));
+            }
+
+            const results: boolean[] = [];
+            const promises: Array<Promise<void>> = [];
+            for (const i of range(this.data.inputs.length)) {
+                promises.push(
+                    this.signInputHDAsync(i, hdKeyPair, sighashTypes).then(
+                        () => {
+                            results.push(true);
+                        },
+                        () => {
+                            results.push(false);
+                        },
+                    ),
+                );
+            }
+            return Promise.all(promises).then(() => {
+                if (results.every(v => v === false)) {
+                    return reject(new Error('No inputs were signed'));
+                }
+                resolve();
+            });
+        });
+    }
+
+    signInputHD(
+        inputIndex: number,
+        hdKeyPair: HDSigner,
+        sighashTypes: number[] = [Transaction.SIGHASH_ALL],
+    ): this {
+        if (!hdKeyPair || !hdKeyPair.publicKey || !hdKeyPair.fingerprint) {
+            throw new Error('Need HDSigner to sign input');
+        }
+        const signers = getSignersFromHD(
+            inputIndex,
+            this.data.inputs,
+            hdKeyPair,
+        ) as Signer[];
+        signers.forEach(signer =>
+            this.signInput(inputIndex, signer, sighashTypes),
+        );
+        return this;
+    }
+
+    signInputHDAsync(
+        inputIndex: number,
+        hdKeyPair: HDSigner | HDSignerAsync,
+        sighashTypes: number[] = [Transaction.SIGHASH_ALL],
+    ): Promise<void> {
+        return new Promise((resolve, reject): any => {
+            if (!hdKeyPair || !hdKeyPair.publicKey || !hdKeyPair.fingerprint) {
+                return reject(new Error('Need HDSigner to sign input'));
+            }
+            const signers = getSignersFromHD(
+                inputIndex,
+                this.data.inputs,
+                hdKeyPair,
+            );
+            const promises = signers.map(signer =>
+                this.signInputAsync(
+                    inputIndex,
+                    signer as unknown as Signer,
+                    sighashTypes,
+                ),
+            );
+            return Promise.all(promises)
+                .then(() => {
+                    resolve();
+                })
+                .catch(reject);
+        });
+    }
+
+    signAllInputs(
+        keyPair: Signer | SignerAlternative | BIP32Interface | ECPairInterface,
+        sighashTypes?: number[],
+    ): this {
+        if (!keyPair || !keyPair.publicKey)
+            throw new Error('Need Signer to sign input');
+
+        // TODO: Add a pubkey/pubkeyhash cache to each input
+        // as input information is added, then eventually
+        // optimize this method.
+        const results: boolean[] = [];
+        for (const i of range(this.data.inputs.length)) {
+            try {
+                this.signInput(i, keyPair, sighashTypes);
+                results.push(true);
+            } catch (err) {
+                results.push(false);
+            }
+        }
+        if (results.every(v => v === false)) {
+            throw new Error('No inputs were signed');
+        }
+        return this;
+    }
+
+    signAllInputsAsync(
+        keyPair:
+            | Signer
+            | SignerAlternative
+            | SignerAsync
+            | BIP32Interface
+            | ECPairInterface,
+        sighashTypes?: number[],
+    ): Promise<void> {
+        return new Promise((resolve, reject): any => {
+            if (!keyPair || !keyPair.publicKey)
+                return reject(new Error('Need Signer to sign input'));
+
+            // TODO: Add a pubkey/pubkeyhash cache to each input
+            // as input information is added, then eventually
+            // optimize this method.
+            const results: boolean[] = [];
+            const promises: Array<Promise<void>> = [];
+            for (const [i] of this.data.inputs.entries()) {
+                promises.push(
+                    this.signInputAsync(i, keyPair, sighashTypes).then(
+                        () => {
+                            results.push(true);
+                        },
+                        () => {
+                            results.push(false);
+                        },
+                    ),
+                );
+            }
+            return Promise.all(promises).then(() => {
+                if (results.every(v => v === false)) {
+                    return reject(new Error('No inputs were signed'));
+                }
+                resolve();
+            });
+        });
+    }
+
+    signInput(
+        inputIndex: number,
+        keyPair: Signer | SignerAlternative | BIP32Interface | ECPairInterface,
+        sighashTypes?: number[],
+    ): this {
+        if (!keyPair || !keyPair.publicKey)
+            throw new Error('Need Signer to sign input');
+
+        const input = checkForInput(this.data.inputs, inputIndex);
+
+        if (isTaprootInput(input)) {
+            return this._signTaprootInput(
+                inputIndex,
+                input,
+                keyPair,
+                undefined,
+                sighashTypes,
+            );
+        }
+        return this._signInput(inputIndex, keyPair, sighashTypes);
+    }
+
+    signTaprootInput(
+        inputIndex: number,
+        keyPair: Signer | SignerAlternative | BIP32Interface | ECPairInterface,
+        tapLeafHashToSign?: Buffer,
+        sighashTypes?: number[],
+    ): this {
+        if (!keyPair || !keyPair.publicKey)
+            throw new Error('Need Signer to sign input');
+        const input = checkForInput(this.data.inputs, inputIndex);
+
+        if (isTaprootInput(input))
+            return this._signTaprootInput(
+                inputIndex,
+                input,
+                keyPair,
+                tapLeafHashToSign,
+                sighashTypes,
+            );
+        throw new Error(`Input #${inputIndex} is not of type Taproot.`);
+    }
+
+    signInputAsync(
+        inputIndex: number,
+        keyPair:
+            | Signer
+            | SignerAlternative
+            | SignerAsync
+            | BIP32Interface
+            | ECPairInterface,
+        sighashTypes?: number[],
+    ): Promise<void> {
+        return Promise.resolve().then(() => {
+            if (!keyPair || !keyPair.publicKey)
+                throw new Error('Need Signer to sign input');
+
+            const input = checkForInput(this.data.inputs, inputIndex);
+            if (isTaprootInput(input))
+                return this._signTaprootInputAsync(
+                    inputIndex,
+                    input,
+                    keyPair,
+                    undefined,
+                    sighashTypes,
+                );
+
+            return this._signInputAsync(inputIndex, keyPair, sighashTypes);
+        });
+    }
+
+    signTaprootInputAsync(
+        inputIndex: number,
+        keyPair:
+            | Signer
+            | SignerAlternative
+            | SignerAsync
+            | BIP32Interface
+            | ECPairInterface,
+        tapLeafHash?: Buffer,
+        sighashTypes?: number[],
+    ): Promise<void> {
+        return Promise.resolve().then(() => {
+            if (!keyPair || !keyPair.publicKey)
+                throw new Error('Need Signer to sign input');
+
+            const input = checkForInput(this.data.inputs, inputIndex);
+            if (isTaprootInput(input))
+                return this._signTaprootInputAsync(
+                    inputIndex,
+                    input,
+                    keyPair,
+                    tapLeafHash,
+                    sighashTypes,
+                );
+
+            throw new Error(`Input #${inputIndex} is not of type Taproot.`);
+        });
+    }
+
+    toBuffer(): Buffer {
+        checkCache(this.__CACHE);
+        return this.data.toBuffer();
+    }
+
+    toHex(): string {
+        checkCache(this.__CACHE);
+        return this.data.toHex();
+    }
+
+    toBase64(): string {
+        checkCache(this.__CACHE);
+        return this.data.toBase64();
+    }
+
+    updateGlobal(updateData: PsbtGlobalUpdate): this {
+        this.data.updateGlobal(updateData);
+        return this;
+    }
+
+    updateInput(inputIndex: number, updateData: PsbtInputUpdate): this {
+        if (updateData.witnessScript)
+            checkInvalidP2WSH(updateData.witnessScript);
+        checkTaprootInputFields(
+            this.data.inputs[inputIndex],
+            updateData,
+            'updateInput',
+        );
+        this.data.updateInput(inputIndex, updateData);
+        if (updateData.nonWitnessUtxo) {
+            addNonWitnessTxCache(
+                this.__CACHE,
+                this.data.inputs[inputIndex],
+                inputIndex,
+            );
+        }
+        return this;
+    }
+
+    updateOutput(outputIndex: number, updateData: PsbtOutputUpdate): this {
+        const outputData = this.data.outputs[outputIndex];
+        checkTaprootOutputFields(outputData, updateData, 'updateOutput');
+
+        this.data.updateOutput(outputIndex, updateData);
+        return this;
+    }
+
+    addUnknownKeyValToGlobal(keyVal: KeyValue): this {
+        this.data.addUnknownKeyValToGlobal(keyVal);
+        return this;
+    }
+
+    addUnknownKeyValToInput(inputIndex: number, keyVal: KeyValue): this {
+        this.data.addUnknownKeyValToInput(inputIndex, keyVal);
+        return this;
+    }
+
+    addUnknownKeyValToOutput(outputIndex: number, keyVal: KeyValue): this {
+        this.data.addUnknownKeyValToOutput(outputIndex, keyVal);
+        return this;
+    }
+
+    clearFinalizedInput(inputIndex: number): this {
+        this.data.clearFinalizedInput(inputIndex);
+        return this;
+    }
+
     private _finalizeInput(
         inputIndex: number,
         input: PsbtInput,
@@ -507,75 +908,6 @@ export class Psbt {
         this.data.clearFinalizedInput(inputIndex);
 
         return this;
-    }
-
-    getInputType(inputIndex: number): AllScriptType {
-        const input = checkForInput(this.data.inputs, inputIndex);
-        const script = getScriptFromUtxo(inputIndex, input, this.__CACHE);
-        const result = getMeaningfulScript(
-            script,
-            inputIndex,
-            'input',
-            input.redeemScript ||
-                redeemFromFinalScriptSig(input.finalScriptSig),
-            input.witnessScript ||
-                redeemFromFinalWitnessScript(input.finalScriptWitness),
-        );
-        const type = result.type === 'raw' ? '' : result.type + '-';
-        const mainType = classifyScript(result.meaningfulScript);
-        return (type + mainType) as AllScriptType;
-    }
-
-    inputHasPubkey(inputIndex: number, pubkey: Buffer): boolean {
-        const input = checkForInput(this.data.inputs, inputIndex);
-        return pubkeyInInput(pubkey, input, inputIndex, this.__CACHE);
-    }
-
-    inputHasHDKey(inputIndex: number, root: HDSigner): boolean {
-        const input = checkForInput(this.data.inputs, inputIndex);
-        const derivationIsMine = bip32DerivationIsMine(root);
-        return (
-            !!input.bip32Derivation &&
-            input.bip32Derivation.some(derivationIsMine)
-        );
-    }
-
-    outputHasPubkey(outputIndex: number, pubkey: Buffer): boolean {
-        const output = checkForOutput(this.data.outputs, outputIndex);
-        return pubkeyInOutput(pubkey, output, outputIndex, this.__CACHE);
-    }
-
-    outputHasHDKey(outputIndex: number, root: HDSigner): boolean {
-        const output = checkForOutput(this.data.outputs, outputIndex);
-        const derivationIsMine = bip32DerivationIsMine(root);
-        return (
-            !!output.bip32Derivation &&
-            output.bip32Derivation.some(derivationIsMine)
-        );
-    }
-
-    validateSignaturesOfAllInputs(validator: ValidateSigFunction): boolean {
-        checkForInput(this.data.inputs, 0); // making sure we have at least one
-        const results = range(this.data.inputs.length).map(idx =>
-            this.validateSignaturesOfInput(idx, validator),
-        );
-        return results.reduce((final, res) => res === true && final, true);
-    }
-
-    validateSignaturesOfInput(
-        inputIndex: number,
-        validator: ValidateSigFunction,
-        pubkey?: Buffer,
-    ): boolean {
-        const input = this.data.inputs[inputIndex];
-        if (isTaprootInput(input))
-            return this.validateSignaturesOfTaprootInput(
-                inputIndex,
-                validator,
-                pubkey,
-            );
-
-        return this._validateSignaturesOfInput(inputIndex, validator, pubkey);
     }
 
     private _validateSignaturesOfInput(
@@ -683,207 +1015,9 @@ export class Psbt {
         return validationResultCount > 0;
     }
 
-    signAllInputsHD(
-        hdKeyPair: HDSigner,
-        sighashTypes: number[] = [Transaction.SIGHASH_ALL],
-    ): this {
-        if (!hdKeyPair || !hdKeyPair.publicKey || !hdKeyPair.fingerprint) {
-            throw new Error('Need HDSigner to sign input');
-        }
-
-        const results: boolean[] = [];
-        for (const i of range(this.data.inputs.length)) {
-            try {
-                this.signInputHD(i, hdKeyPair, sighashTypes);
-                results.push(true);
-            } catch (err) {
-                results.push(false);
-            }
-        }
-        if (results.every(v => v === false)) {
-            throw new Error('No inputs were signed');
-        }
-        return this;
-    }
-
-    signAllInputsHDAsync(
-        hdKeyPair: HDSigner | HDSignerAsync,
-        sighashTypes: number[] = [Transaction.SIGHASH_ALL],
-    ): Promise<void> {
-        return new Promise((resolve, reject): any => {
-            if (!hdKeyPair || !hdKeyPair.publicKey || !hdKeyPair.fingerprint) {
-                return reject(new Error('Need HDSigner to sign input'));
-            }
-
-            const results: boolean[] = [];
-            const promises: Array<Promise<void>> = [];
-            for (const i of range(this.data.inputs.length)) {
-                promises.push(
-                    this.signInputHDAsync(i, hdKeyPair, sighashTypes).then(
-                        () => {
-                            results.push(true);
-                        },
-                        () => {
-                            results.push(false);
-                        },
-                    ),
-                );
-            }
-            return Promise.all(promises).then(() => {
-                if (results.every(v => v === false)) {
-                    return reject(new Error('No inputs were signed'));
-                }
-                resolve();
-            });
-        });
-    }
-
-    signInputHD(
-        inputIndex: number,
-        hdKeyPair: HDSigner,
-        sighashTypes: number[] = [Transaction.SIGHASH_ALL],
-    ): this {
-        if (!hdKeyPair || !hdKeyPair.publicKey || !hdKeyPair.fingerprint) {
-            throw new Error('Need HDSigner to sign input');
-        }
-        const signers = getSignersFromHD(
-            inputIndex,
-            this.data.inputs,
-            hdKeyPair,
-        ) as Signer[];
-        signers.forEach(signer =>
-            this.signInput(inputIndex, signer, sighashTypes),
-        );
-        return this;
-    }
-
-    signInputHDAsync(
-        inputIndex: number,
-        hdKeyPair: HDSigner | HDSignerAsync,
-        sighashTypes: number[] = [Transaction.SIGHASH_ALL],
-    ): Promise<void> {
-        return new Promise((resolve, reject): any => {
-            if (!hdKeyPair || !hdKeyPair.publicKey || !hdKeyPair.fingerprint) {
-                return reject(new Error('Need HDSigner to sign input'));
-            }
-            const signers = getSignersFromHD(
-                inputIndex,
-                this.data.inputs,
-                hdKeyPair,
-            );
-            const promises = signers.map(signer =>
-                this.signInputAsync(inputIndex, signer, sighashTypes),
-            );
-            return Promise.all(promises)
-                .then(() => {
-                    resolve();
-                })
-                .catch(reject);
-        });
-    }
-
-    signAllInputs(keyPair: Signer, sighashTypes?: number[]): this {
-        if (!keyPair || !keyPair.publicKey)
-            throw new Error('Need Signer to sign input');
-
-        // TODO: Add a pubkey/pubkeyhash cache to each input
-        // as input information is added, then eventually
-        // optimize this method.
-        const results: boolean[] = [];
-        for (const i of range(this.data.inputs.length)) {
-            try {
-                this.signInput(i, keyPair, sighashTypes);
-                results.push(true);
-            } catch (err) {
-                results.push(false);
-            }
-        }
-        if (results.every(v => v === false)) {
-            throw new Error('No inputs were signed');
-        }
-        return this;
-    }
-
-    signAllInputsAsync(
-        keyPair: Signer | SignerAsync,
-        sighashTypes?: number[],
-    ): Promise<void> {
-        return new Promise((resolve, reject): any => {
-            if (!keyPair || !keyPair.publicKey)
-                return reject(new Error('Need Signer to sign input'));
-
-            // TODO: Add a pubkey/pubkeyhash cache to each input
-            // as input information is added, then eventually
-            // optimize this method.
-            const results: boolean[] = [];
-            const promises: Array<Promise<void>> = [];
-            for (const [i] of this.data.inputs.entries()) {
-                promises.push(
-                    this.signInputAsync(i, keyPair, sighashTypes).then(
-                        () => {
-                            results.push(true);
-                        },
-                        () => {
-                            results.push(false);
-                        },
-                    ),
-                );
-            }
-            return Promise.all(promises).then(() => {
-                if (results.every(v => v === false)) {
-                    return reject(new Error('No inputs were signed'));
-                }
-                resolve();
-            });
-        });
-    }
-
-    signInput(
-        inputIndex: number,
-        keyPair: Signer,
-        sighashTypes?: number[],
-    ): this {
-        if (!keyPair || !keyPair.publicKey)
-            throw new Error('Need Signer to sign input');
-
-        const input = checkForInput(this.data.inputs, inputIndex);
-
-        if (isTaprootInput(input)) {
-            return this._signTaprootInput(
-                inputIndex,
-                input,
-                keyPair,
-                undefined,
-                sighashTypes,
-            );
-        }
-        return this._signInput(inputIndex, keyPair, sighashTypes);
-    }
-
-    signTaprootInput(
-        inputIndex: number,
-        keyPair: Signer,
-        tapLeafHashToSign?: Buffer,
-        sighashTypes?: number[],
-    ): this {
-        if (!keyPair || !keyPair.publicKey)
-            throw new Error('Need Signer to sign input');
-        const input = checkForInput(this.data.inputs, inputIndex);
-
-        if (isTaprootInput(input))
-            return this._signTaprootInput(
-                inputIndex,
-                input,
-                keyPair,
-                tapLeafHashToSign,
-                sighashTypes,
-            );
-        throw new Error(`Input #${inputIndex} is not of type Taproot.`);
-    }
-
     private _signInput(
         inputIndex: number,
-        keyPair: Signer,
+        keyPair: Signer | SignerAlternative | BIP32Interface | ECPairInterface,
         sighashTypes: number[] = [Transaction.SIGHASH_ALL],
     ): this {
         const { hash, sighashType } = getHashAndSighashType(
@@ -911,7 +1045,7 @@ export class Psbt {
     private _signTaprootInput(
         inputIndex: number,
         input: PsbtInput,
-        keyPair: Signer,
+        keyPair: Signer | SignerAlternative | BIP32Interface | ECPairInterface,
         tapLeafHashToSign?: Buffer,
         allowedSighashTypes: number[] = [Transaction.SIGHASH_DEFAULT],
     ): this {
@@ -957,56 +1091,14 @@ export class Psbt {
         return this;
     }
 
-    signInputAsync(
-        inputIndex: number,
-        keyPair: Signer | SignerAsync,
-        sighashTypes?: number[],
-    ): Promise<void> {
-        return Promise.resolve().then(() => {
-            if (!keyPair || !keyPair.publicKey)
-                throw new Error('Need Signer to sign input');
-
-            const input = checkForInput(this.data.inputs, inputIndex);
-            if (isTaprootInput(input))
-                return this._signTaprootInputAsync(
-                    inputIndex,
-                    input,
-                    keyPair,
-                    undefined,
-                    sighashTypes,
-                );
-
-            return this._signInputAsync(inputIndex, keyPair, sighashTypes);
-        });
-    }
-
-    signTaprootInputAsync(
-        inputIndex: number,
-        keyPair: Signer | SignerAsync,
-        tapLeafHash?: Buffer,
-        sighashTypes?: number[],
-    ): Promise<void> {
-        return Promise.resolve().then(() => {
-            if (!keyPair || !keyPair.publicKey)
-                throw new Error('Need Signer to sign input');
-
-            const input = checkForInput(this.data.inputs, inputIndex);
-            if (isTaprootInput(input))
-                return this._signTaprootInputAsync(
-                    inputIndex,
-                    input,
-                    keyPair,
-                    tapLeafHash,
-                    sighashTypes,
-                );
-
-            throw new Error(`Input #${inputIndex} is not of type Taproot.`);
-        });
-    }
-
     private _signInputAsync(
         inputIndex: number,
-        keyPair: Signer | SignerAsync,
+        keyPair:
+            | Signer
+            | SignerAlternative
+            | SignerAsync
+            | BIP32Interface
+            | ECPairInterface,
         sighashTypes: number[] = [Transaction.SIGHASH_ALL],
     ): Promise<void> {
         const { hash, sighashType } = getHashAndSighashType(
@@ -1032,7 +1124,12 @@ export class Psbt {
     private async _signTaprootInputAsync(
         inputIndex: number,
         input: PsbtInput,
-        keyPair: Signer | SignerAsync,
+        keyPair:
+            | Signer
+            | SignerAlternative
+            | SignerAsync
+            | BIP32Interface
+            | ECPairInterface,
         tapLeafHash?: Buffer,
         sighashTypes: number[] = [Transaction.SIGHASH_DEFAULT],
     ): Promise<void> {
@@ -1092,7 +1189,12 @@ export class Psbt {
     private checkTaprootHashesForSig(
         inputIndex: number,
         input: PsbtInput,
-        keyPair: Signer | SignerAsync,
+        keyPair:
+            | Signer
+            | SignerAlternative
+            | SignerAsync
+            | BIP32Interface
+            | ECPairInterface,
         tapLeafHashToSign?: Buffer,
         allowedSighashTypes?: number[],
     ): { hash: Buffer; leafHash?: Buffer }[] {
@@ -1119,73 +1221,6 @@ export class Psbt {
             );
 
         return hashesForSig;
-    }
-
-    toBuffer(): Buffer {
-        checkCache(this.__CACHE);
-        return this.data.toBuffer();
-    }
-
-    toHex(): string {
-        checkCache(this.__CACHE);
-        return this.data.toHex();
-    }
-
-    toBase64(): string {
-        checkCache(this.__CACHE);
-        return this.data.toBase64();
-    }
-
-    updateGlobal(updateData: PsbtGlobalUpdate): this {
-        this.data.updateGlobal(updateData);
-        return this;
-    }
-
-    updateInput(inputIndex: number, updateData: PsbtInputUpdate): this {
-        if (updateData.witnessScript)
-            checkInvalidP2WSH(updateData.witnessScript);
-        checkTaprootInputFields(
-            this.data.inputs[inputIndex],
-            updateData,
-            'updateInput',
-        );
-        this.data.updateInput(inputIndex, updateData);
-        if (updateData.nonWitnessUtxo) {
-            addNonWitnessTxCache(
-                this.__CACHE,
-                this.data.inputs[inputIndex],
-                inputIndex,
-            );
-        }
-        return this;
-    }
-
-    updateOutput(outputIndex: number, updateData: PsbtOutputUpdate): this {
-        const outputData = this.data.outputs[outputIndex];
-        checkTaprootOutputFields(outputData, updateData, 'updateOutput');
-
-        this.data.updateOutput(outputIndex, updateData);
-        return this;
-    }
-
-    addUnknownKeyValToGlobal(keyVal: KeyValue): this {
-        this.data.addUnknownKeyValToGlobal(keyVal);
-        return this;
-    }
-
-    addUnknownKeyValToInput(inputIndex: number, keyVal: KeyValue): this {
-        this.data.addUnknownKeyValToInput(inputIndex, keyVal);
-        return this;
-    }
-
-    addUnknownKeyValToOutput(outputIndex: number, keyVal: KeyValue): this {
-        this.data.addUnknownKeyValToOutput(outputIndex, keyVal);
-        return this;
-    }
-
-    clearFinalizedInput(inputIndex: number): this {
-        this.data.clearFinalizedInput(inputIndex);
-        return this;
     }
 }
 
@@ -1258,9 +1293,22 @@ export interface HDSignerAsync extends HDSignerBase {
     sign(hash: Buffer): Promise<Buffer>;
 }
 
+export interface SignerAlternative {
+    publicKey: Buffer;
+    lowR: boolean;
+
+    sign(hash: Buffer, lowR?: boolean): Buffer;
+
+    verify(hash: Buffer, signature: Buffer): boolean;
+
+    signSchnorr(hash: Buffer): Buffer;
+
+    verifySchnorr(hash: Buffer, signature: Buffer): boolean;
+}
+
 export interface Signer {
     publicKey: Buffer;
-    network?: any;
+    network?: Network;
 
     sign(hash: Buffer, lowR?: boolean): Buffer;
 
@@ -1271,7 +1319,7 @@ export interface Signer {
 
 export interface SignerAsync {
     publicKey: Buffer;
-    network?: any;
+    network?: Network;
 
     sign(hash: Buffer, lowR?: boolean): Promise<Buffer>;
 
@@ -1315,13 +1363,12 @@ class PsbtTransaction implements ITransaction {
         };
     }
 
-    addInput(input: any): void {
+    addInput(input: TransactionInput): void {
         if (
-            (input as any).hash === undefined ||
-            (input as any).index === undefined ||
-            (!Buffer.isBuffer((input as any).hash) &&
-                typeof (input as any).hash !== 'string') ||
-            typeof (input as any).index !== 'number'
+            input.hash === undefined ||
+            input.index === undefined ||
+            (!Buffer.isBuffer(input.hash) && typeof input.hash !== 'string') ||
+            typeof input.index !== 'number'
         ) {
             throw new Error('Error adding input.');
         }
@@ -1329,15 +1376,16 @@ class PsbtTransaction implements ITransaction {
             typeof input.hash === 'string'
                 ? reverseBuffer(Buffer.from(input.hash, 'hex'))
                 : input.hash;
+
         this.tx.addInput(hash, input.index, input.sequence);
     }
 
-    addOutput(output: any): void {
+    addOutput(output: TransactionOutput): void {
         if (
-            (output as any).script === undefined ||
-            (output as any).value === undefined ||
-            !Buffer.isBuffer((output as any).script) ||
-            typeof (output as any).value !== 'number'
+            output.script === undefined ||
+            output.value === undefined ||
+            !Buffer.isBuffer(output.script) ||
+            typeof output.value !== 'number'
         ) {
             throw new Error('Error adding output.');
         }
@@ -1505,9 +1553,14 @@ function checkTxInputCache(
 }
 
 function scriptCheckerFactory(
-    payment: any,
+    payment: (a: Payment, opts?: PaymentOpts) => Payment,
     paymentScriptName: string,
-): (idx: number, spk: Buffer, rs: Buffer, ioType: 'input' | 'output') => void {
+): (
+    idx: number,
+    scriptPubKey: Buffer,
+    redeemScript: Buffer,
+    ioType: 'input' | 'output',
+) => void {
     return (
         inputIndex: number,
         scriptPubKey: Buffer,
@@ -1985,7 +2038,7 @@ function getSignersFromHD(
     inputIndex: number,
     inputs: PsbtInput[],
     hdKeyPair: HDSigner | HDSignerAsync,
-): Array<Signer | SignerAsync> {
+): (HDSigner | HDSignerAsync)[] {
     const input = checkForInput(inputs, inputIndex);
     if (!input.bip32Derivation || input.bip32Derivation.length === 0) {
         throw new Error('Need bip32Derivation to sign with HD');
@@ -2004,14 +2057,14 @@ function getSignersFromHD(
             'Need one bip32Derivation masterFingerprint to match the HDSigner fingerprint',
         );
     }
-    const signers: Array<Signer | SignerAsync> = myDerivations.map(bipDv => {
+
+    return myDerivations.map(bipDv => {
         const node = hdKeyPair.derivePath(bipDv!.path);
         if (!bipDv!.pubkey.equals(node.publicKey)) {
             throw new Error('pubkey did not match bip32Derivation');
         }
         return node;
     });
-    return signers;
 }
 
 function getSortedSigs(script: Buffer, partialSig: PartialSig[]): Buffer[] {
