@@ -13,6 +13,17 @@ const bscript = require('./script');
 const transaction_1 = require('./transaction');
 const bip371_1 = require('./psbt/bip371');
 const psbtutils_1 = require('./psbt/psbtutils');
+/*const reverseBufferLRU = new LRUCache<string, Buffer>(100);
+
+function reverseBufferWithCache(str: string, buffer: Buffer): Buffer {
+    let bufferReversed: Buffer | undefined = reverseBufferLRU.get(str);
+    if (!bufferReversed) {
+        bufferReversed = reverseBuffer(buffer);
+        reverseBufferLRU.set(str, bufferReversed);
+    }
+
+    return bufferReversed;
+}*/
 /**
  * These are the default arguments for a Psbt instance.
  */
@@ -202,17 +213,29 @@ class Psbt {
                     `Requires single object with at least [hash] and [index]`,
             );
         }
+        let s = Date.now();
         (0, bip371_1.checkTaprootInputFields)(inputData, inputData, 'addInput');
+        console.log('checkTaprootInputFields', Date.now() - s);
+        s = Date.now();
         checkInputsForPartialSig(this.data.inputs, 'addInput');
+        console.log('checkInputsForPartialSig', Date.now() - s);
+        s = Date.now();
         if (inputData.witnessScript) checkInvalidP2WSH(inputData.witnessScript);
+        console.log('checkInvalidP2WSH', Date.now() - s);
         const c = this.__CACHE;
+        s = Date.now();
         this.data.addInput(inputData);
+        console.log('addInput', Date.now() - s);
         const txIn = c.__TX.ins[c.__TX.ins.length - 1];
+        s = Date.now();
         checkTxInputCache(c, txIn);
+        console.log('checkTxInputCache', Date.now() - s);
         const inputIndex = this.data.inputs.length - 1;
         const input = this.data.inputs[inputIndex];
         if (input.nonWitnessUtxo) {
+            s = Date.now();
             addNonWitnessTxCache(this.__CACHE, input, inputIndex);
+            console.log('addNonWitnessTxCache', Date.now() - s);
         }
         c.__FEE = undefined;
         c.__FEE_RATE = undefined;
@@ -1152,9 +1175,7 @@ function checkTxForDupeIns(tx, cache) {
 }
 function checkTxInputCache(cache, input) {
     const key =
-        (0, bufferutils_1.reverseBuffer)(Buffer.from(input.hash)).toString(
-            'hex',
-        ) +
+        (0, bufferutils_1.reverseBuffer)(input.hash).toString('hex') +
         ':' +
         input.index;
     if (cache.__TX_IN_CACHE[key]) throw new Error('Duplicate input detected.');
