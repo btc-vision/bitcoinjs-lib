@@ -194,7 +194,6 @@ class Psbt {
     }
     addInput(inputData, checkPartialSigs = true) {
         if (
-            arguments.length > 1 ||
             !inputData ||
             inputData.hash === undefined ||
             inputData.index === undefined
