@@ -25,16 +25,10 @@ export class AdvancedSignatureManager {
             const set = this.cacheBySigner.get(entry.pubKey);
             if (set) {
                 set.delete(entry);
-                console.log(
-                    `Finalizing cache entry for signer ${entry.pubKey}`,
-                );
 
                 // Clean up the set if it's empty
                 if (set.size === 0) {
                     this.cacheBySigner.delete(entry.pubKey);
-                    console.log(
-                        `Removed signer ${entry.pubKey} from cache as all signatures are purged`,
-                    );
                 }
             }
         });

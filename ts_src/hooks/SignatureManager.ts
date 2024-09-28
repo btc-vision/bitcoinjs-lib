@@ -22,9 +22,6 @@ export class SignatureManager {
             const set = this.cacheByLength.get(entry.length);
             if (set) {
                 set.delete(entry);
-                console.log(
-                    `Finalizing cache entry for buffer length ${entry.length}`,
-                );
                 // Clean up the set if it's empty
                 if (set.size === 0) {
                     this.cacheByLength.delete(entry.length);
