@@ -13,6 +13,7 @@ const bscript = require('./script');
 const transaction_1 = require('./transaction');
 const bip371_1 = require('./psbt/bip371');
 const psbtutils_1 = require('./psbt/psbtutils');
+const HookedSigner_js_1 = require('./hooks/HookedSigner.js');
 /**
  * These are the default arguments for a Psbt instance.
  */
@@ -66,7 +67,13 @@ const DEFAULT_OPTS = {
  * Transaction Extractor: This role will perform some checks before returning a
  *   Transaction object. Such as fee rate not being larger than maximumFeeRate etc.
  */
+/**
+ * Psbt class can parse and generate a PSBT binary based off of the BIP174.
+ */
 class Psbt {
+    data;
+    __CACHE;
+    opts;
     constructor(opts = {}, data = new bip174_1.Psbt(new PsbtTransaction())) {
         this.data = data;
         this.opts = Object.assign({}, DEFAULT_OPTS, opts);
@@ -811,6 +818,7 @@ class Psbt {
         keyPair,
         sighashTypes = [transaction_1.Transaction.SIGHASH_ALL],
     ) {
+        (0, HookedSigner_js_1.hookSigner)(keyPair);
         const { hash, sighashType } = getHashAndSighashType(
             this.data.inputs,
             inputIndex,
@@ -837,6 +845,7 @@ class Psbt {
         tapLeafHashToSign,
         allowedSighashTypes = [transaction_1.Transaction.SIGHASH_DEFAULT],
     ) {
+        (0, HookedSigner_js_1.hookSigner)(keyPair);
         const hashesForSig = this.checkTaprootHashesForSig(
             inputIndex,
             input,
@@ -875,6 +884,7 @@ class Psbt {
         keyPair,
         sighashTypes = [transaction_1.Transaction.SIGHASH_ALL],
     ) {
+        (0, HookedSigner_js_1.hookSigner)(keyPair);
         const { hash, sighashType } = getHashAndSighashType(
             this.data.inputs,
             inputIndex,
@@ -899,6 +909,7 @@ class Psbt {
         tapLeafHash,
         sighashTypes = [transaction_1.Transaction.SIGHASH_DEFAULT],
     ) {
+        (0, HookedSigner_js_1.hookSigner)(keyPair);
         const hashesForSig = this.checkTaprootHashesForSig(
             inputIndex,
             input,
@@ -990,6 +1001,7 @@ const transactionFromBuffer = buffer => new PsbtTransaction(buffer);
  * It contains a bitcoinjs-lib Transaction object.
  */
 class PsbtTransaction {
+    tx;
     constructor(buffer = Buffer.from([2, 0, 0, 0, 0, 0, 0, 0, 0, 0])) {
         this.tx = transaction_1.Transaction.fromBuffer(buffer);
         checkTxEmpty(this.tx);

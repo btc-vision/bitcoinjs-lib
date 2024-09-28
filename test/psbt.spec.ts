@@ -243,16 +243,10 @@ describe(`Psbt`, () => {
                             f.shouldSign.sighashTypes || undefined,
                         );
                         if (f.shouldSign.result) {
-                            console.log(
-                                'checking result',
-                                f.shouldSign.result,
-                                psbtThatShouldsign.toBase64(),
-                            );
                             assert.strictEqual(
                                 psbtThatShouldsign.toBase64(),
                                 f.shouldSign.result,
                             );
-                            console.log('results are equal');
                         }
                     });
                     const failMessage = f.isTaproot

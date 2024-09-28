@@ -62,6 +62,9 @@ export interface PsbtBaseExtended extends Omit<PsbtBase, 'inputs'> {
  * Transaction Extractor: This role will perform some checks before returning a
  *   Transaction object. Such as fee rate not being larger than maximumFeeRate etc.
  */
+/**
+ * Psbt class can parse and generate a PSBT binary based off of the BIP174.
+ */
 export declare class Psbt {
     data: PsbtBaseExtended;
     private readonly __CACHE;

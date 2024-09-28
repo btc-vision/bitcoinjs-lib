@@ -75,6 +75,8 @@ exports.cloneBuffer = cloneBuffer;
  * Helper class for serialization of bitcoin data types into a pre-allocated buffer.
  */
 class BufferWriter {
+    buffer;
+    offset;
     constructor(buffer, offset = 0) {
         this.buffer = buffer;
         this.offset = offset;
@@ -127,6 +129,8 @@ exports.BufferWriter = BufferWriter;
  * Helper class for reading of bitcoin data types from a buffer.
  */
 class BufferReader {
+    buffer;
+    offset;
     constructor(buffer, offset = 0) {
         this.buffer = buffer;
         this.offset = offset;

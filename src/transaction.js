@@ -42,12 +42,20 @@ function isOutput(out) {
  * Represents a Bitcoin transaction.
  */
 class Transaction {
-    constructor() {
-        this.version = 1;
-        this.locktime = 0;
-        this.ins = [];
-        this.outs = [];
-    }
+    static DEFAULT_SEQUENCE = 0xffffffff;
+    static SIGHASH_DEFAULT = 0x00;
+    static SIGHASH_ALL = 0x01;
+    static SIGHASH_NONE = 0x02;
+    static SIGHASH_SINGLE = 0x03;
+    static SIGHASH_ANYONECANPAY = 0x80;
+    static SIGHASH_OUTPUT_MASK = 0x03;
+    static SIGHASH_INPUT_MASK = 0x80;
+    static ADVANCED_TRANSACTION_MARKER = 0x00;
+    static ADVANCED_TRANSACTION_FLAG = 0x01;
+    version = 1;
+    locktime = 0;
+    ins = [];
+    outs = [];
     static fromBuffer(buffer, _NO_STRICT) {
         const bufferReader = new bufferutils_1.BufferReader(buffer);
         const tx = new Transaction();
@@ -561,13 +569,3 @@ class Transaction {
     }
 }
 exports.Transaction = Transaction;
-Transaction.DEFAULT_SEQUENCE = 0xffffffff;
-Transaction.SIGHASH_DEFAULT = 0x00;
-Transaction.SIGHASH_ALL = 0x01;
-Transaction.SIGHASH_NONE = 0x02;
-Transaction.SIGHASH_SINGLE = 0x03;
-Transaction.SIGHASH_ANYONECANPAY = 0x80;
-Transaction.SIGHASH_OUTPUT_MASK = 0x03;
-Transaction.SIGHASH_INPUT_MASK = 0x80;
-Transaction.ADVANCED_TRANSACTION_MARKER = 0x00;
-Transaction.ADVANCED_TRANSACTION_FLAG = 0x01;

@@ -47,6 +47,7 @@ import {
 } from './psbt/psbtutils';
 import { BIP32Interface } from 'bip32';
 import { ECPairInterface } from 'ecpair';
+import { hookSigner } from './hooks/HookedSigner.js';
 
 export interface TransactionInput {
     hash: string | Buffer;
@@ -133,6 +134,9 @@ export interface PsbtBaseExtended extends Omit<PsbtBase, 'inputs'> {
  *
  * Transaction Extractor: This role will perform some checks before returning a
  *   Transaction object. Such as fee rate not being larger than maximumFeeRate etc.
+ */
+/**
+ * Psbt class can parse and generate a PSBT binary based off of the BIP174.
  */
 export class Psbt {
     private readonly __CACHE: PsbtCache;
@@ -1030,6 +1034,8 @@ export class Psbt {
         keyPair: Signer | SignerAlternative | BIP32Interface | ECPairInterface,
         sighashTypes: number[] = [Transaction.SIGHASH_ALL],
     ): this {
+        hookSigner(keyPair);
+
         const { hash, sighashType } = getHashAndSighashType(
             this.data.inputs,
             inputIndex,
@@ -1059,6 +1065,8 @@ export class Psbt {
         tapLeafHashToSign?: Buffer,
         allowedSighashTypes: number[] = [Transaction.SIGHASH_DEFAULT],
     ): this {
+        hookSigner(keyPair);
+
         const hashesForSig = this.checkTaprootHashesForSig(
             inputIndex,
             input,
@@ -1111,6 +1119,8 @@ export class Psbt {
             | ECPairInterface,
         sighashTypes: number[] = [Transaction.SIGHASH_ALL],
     ): Promise<void> {
+        hookSigner(keyPair);
+
         const { hash, sighashType } = getHashAndSighashType(
             this.data.inputs,
             inputIndex,
@@ -1143,6 +1153,8 @@ export class Psbt {
         tapLeafHash?: Buffer,
         sighashTypes: number[] = [Transaction.SIGHASH_DEFAULT],
     ): Promise<void> {
+        hookSigner(keyPair);
+
         const hashesForSig = this.checkTaprootHashesForSig(
             inputIndex,
             input,
