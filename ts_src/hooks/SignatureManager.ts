@@ -38,7 +38,7 @@ export class SignatureManager {
      * @param data The data buffer.
      * @param signature The signature buffer.
      */
-    public addSignature(data: Buffer, signature: Buffer): void {
+    public addSignature(data: Buffer, signature: Buffer): Buffer {
         const length = data.length;
         const entry: CacheEntry = {
             length,
@@ -55,6 +55,8 @@ export class SignatureManager {
 
         // Register the data buffer with the FinalizationRegistry.
         this.registry.register(data, entry);
+
+        return signature;
     }
 
     /**

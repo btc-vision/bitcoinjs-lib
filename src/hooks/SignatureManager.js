@@ -46,6 +46,7 @@ class SignatureManager {
         set.add(entry);
         // Register the data buffer with the FinalizationRegistry.
         this.registry.register(data, entry);
+        return signature;
     }
     /**
      * Retrieves the signature for the given data buffer.

@@ -21,7 +21,7 @@ export declare class SignatureManager {
      * @param data The data buffer.
      * @param signature The signature buffer.
      */
-    addSignature(data: Buffer, signature: Buffer): void;
+    addSignature(data: Buffer, signature: Buffer): Buffer;
     /**
      * Retrieves the signature for the given data buffer.
      * @param data The data buffer.

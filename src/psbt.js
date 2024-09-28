@@ -934,31 +934,26 @@ class Psbt {
         }
         const tapScriptHashes = hashesForSig.filter(h => !!h.leafHash);
         if (tapScriptHashes.length) {
-            const tapScriptSigPromises = tapScriptHashes.map(tsh => {
-                return Promise.resolve(keyPair.signSchnorr(tsh.hash)).then(
-                    signature => {
-                        const tapScriptSig = [
-                            {
-                                pubkey: (0, bip371_1.toXOnly)(
-                                    keyPair.publicKey,
-                                ),
-                                signature: (0,
-                                bip371_1.serializeTaprootSignature)(
-                                    signature,
-                                    input.sighashType,
-                                ),
-                                leafHash: tsh.leafHash,
-                            },
-                        ];
-                        return { tapScriptSig };
+            const tapScriptSigPromises = tapScriptHashes.map(async tsh => {
+                const signature = await keyPair.signSchnorr(tsh.hash);
+                const tapScriptSig = [
+                    {
+                        pubkey: (0, bip371_1.toXOnly)(keyPair.publicKey),
+                        signature: (0, bip371_1.serializeTaprootSignature)(
+                            signature,
+                            input.sighashType,
+                        ),
+                        leafHash: tsh.leafHash,
                     },
-                );
+                ];
+                return { tapScriptSig };
             });
             signaturePromises.push(...tapScriptSigPromises);
         }
-        return Promise.all(signaturePromises).then(results => {
-            results.forEach(v => this.data.updateInput(inputIndex, v));
-        });
+        const results = await Promise.all(signaturePromises);
+        for (const v of results) {
+            this.data.updateInput(inputIndex, v);
+        }
     }
     checkTaprootHashesForSig(
         inputIndex,

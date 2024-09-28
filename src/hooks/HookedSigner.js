@@ -1,89 +1,90 @@
 'use strict';
 Object.defineProperty(exports, '__esModule', { value: true });
 exports.hookSigner = void 0;
-/*import { SignatureManager } from './SignatureManager.js';
-
-interface HookSigner {
-    hasHook?: boolean;
-    signatureManager: SignatureManager;
+const SignatureManager_js_1 = require('./SignatureManager.js');
+const AdvancedSignatureManager_js_1 = require('./AdvancedSignatureManager.js');
+const advancedSignatureManager =
+    AdvancedSignatureManager_js_1.AdvancedSignatureManager.getInstance();
+function getPublicKey(keyPair) {
+    if (keyPair.publicKey && Buffer.isBuffer(keyPair.publicKey)) {
+        return keyPair.publicKey.toString('hex');
+    }
 }
-
-type HookedSigner = (
-    | Signer
-    | SignerAlternative
-    | SignerAsync
-    | BIP32Interface
-    | ECPairInterface
-) &
-    HookSigner;
-
-function hookKeyPair(keyPair: HookedSigner) {
+function hookKeyPair(keyPair) {
     const oldSign = keyPair.sign;
-
-    keyPair.sign = new Proxy(oldSign, {
-        apply: function (target, thisArg, argumentsList) {
-            let possibleSignature = keyPair.signatureManager.getSignature(
-                argumentsList[0],
-            );
-
-            if (!possibleSignature) {
-                possibleSignature = Reflect.apply(
-                    target,
-                    thisArg,
-                    argumentsList,
-                );
-
-                keyPair.signatureManager.addSignature(
-                    argumentsList[0],
-                    possibleSignature as Buffer,
-                );
-            } else {
-                console.log('Signature found in cache:', possibleSignature);
-            }
-
-            return possibleSignature;
-        },
-    });
-
+    if (oldSign) {
+        keyPair.sign = new Proxy(oldSign, {
+            apply: function (target, thisArg, argumentsList) {
+                const publicKey = getPublicKey(keyPair);
+                const hash = argumentsList[0];
+                if (publicKey) {
+                    let possibleSignature =
+                        advancedSignatureManager.getSignature(publicKey, hash);
+                    if (!possibleSignature) {
+                        possibleSignature =
+                            advancedSignatureManager.addSignature(
+                                publicKey,
+                                hash,
+                                Reflect.apply(target, thisArg, argumentsList),
+                            );
+                    }
+                    return possibleSignature;
+                } else {
+                    let possibleSignature =
+                        keyPair.signatureManager.getSignature(hash);
+                    if (!possibleSignature) {
+                        possibleSignature =
+                            keyPair.signatureManager.addSignature(
+                                hash,
+                                Reflect.apply(target, thisArg, argumentsList),
+                            );
+                    }
+                    return possibleSignature;
+                }
+            },
+        });
+    }
     const oldSignSchnorr = keyPair.signSchnorr;
     if (oldSignSchnorr) {
         keyPair.signSchnorr = new Proxy(oldSignSchnorr, {
             apply: function (target, thisArg, argumentsList) {
-                let possibleSignature = keyPair.signatureManager.getSignature(
-                    argumentsList[0],
-                );
-
-                if (!possibleSignature) {
-                    possibleSignature = Reflect.apply(
-                        target,
-                        thisArg,
-                        argumentsList,
-                    );
-
-                    keyPair.signatureManager.addSignature(
-                        argumentsList[0],
-                        possibleSignature as Buffer,
-                    );
+                const publicKey = getPublicKey(keyPair);
+                const hash = argumentsList[0];
+                if (publicKey) {
+                    let possibleSignature =
+                        advancedSignatureManager.getSignature(publicKey, hash);
+                    if (!possibleSignature) {
+                        possibleSignature =
+                            advancedSignatureManager.addSignature(
+                                publicKey,
+                                hash,
+                                Reflect.apply(target, thisArg, argumentsList),
+                            );
+                    }
+                    return possibleSignature;
                 } else {
-                    console.log(
-                        'signSchnorr found in cache:',
-                        possibleSignature,
-                    );
+                    let possibleSignature =
+                        keyPair.signatureManager.getSignature(hash);
+                    if (!possibleSignature) {
+                        possibleSignature =
+                            keyPair.signatureManager.addSignature(
+                                hash,
+                                Reflect.apply(target, thisArg, argumentsList),
+                            );
+                    }
+                    return possibleSignature;
                 }
-
-                return possibleSignature;
             },
         });
     }
-}*/
-function hookSigner(_keyPair) {
-    /*const newKeypair: HookedSigner = keyPair as HookedSigner;
-
+}
+function hookSigner(keyPair) {
+    const newKeypair = keyPair;
     if (!newKeypair.hasHook) {
         newKeypair.hasHook = true;
-        newKeypair.signatureManager = new SignatureManager();
-
+        newKeypair.signatureManager =
+            new SignatureManager_js_1.SignatureManager();
         hookKeyPair(newKeypair);
-    }*/
+    }
 }
 exports.hookSigner = hookSigner;
